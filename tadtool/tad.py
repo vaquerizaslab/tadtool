@@ -105,3 +105,22 @@ def directionality_index(hic, regions=None, window_size=2000000):
             di[i] = ((B-A)/abs(B-A)) * ((((A-E)**2)/E) + (((B-E)**2)/E))
 
     return di
+
+
+def masked_matrix(matrix, all_zero=False):
+    """
+    Returns masked version of HicMatrix. By default, all entries in zero-count
+    rows and columns are masked.
+
+    :param matrix: A numpy 2D matrix
+    :param all_zero: Mask ALL zero-count entries
+    :returns: MaskedArray with zero entries masked
+    """
+    if all_zero:
+        return np.ma.MaskedArray(matrix, mask=np.isclose(matrix, 0.))
+    col_zero = np.isclose(np.sum(matrix, axis=0), 0.)
+    row_zero = np.isclose(np.sum(matrix, axis=1), 0.)
+    mask = np.zeros(matrix.shape, dtype=np.bool_)
+    mask[:, col_zero] = np.True_
+    mask[row_zero, :] = np.True_
+    return np.ma.MaskedArray(matrix, mask=mask)
