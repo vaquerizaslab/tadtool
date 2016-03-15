@@ -2,7 +2,7 @@ from __future__ import division
 import numpy as np
 
 
-class GenomicRegion(TableObject):
+class GenomicRegion(object):
     """
     Class representing a genomic region.
 
@@ -29,7 +29,7 @@ class GenomicRegion(TableObject):
 
     """
 
-    def __init__(self, start, end, chromosome=None, strand=None, ix=None, **kwargs):
+    def __init__(self, start, end, chromosome=None, ix=None):
         """
         Initialize this object.
 
@@ -42,29 +42,8 @@ class GenomicRegion(TableObject):
         """
         self.start = start
         self.end = end
-        if strand == "+":
-            strand = 1
-        elif strand == "-":
-            strand = -1
-        elif strand == "0" or strand == ".":
-            strand = None
-        self.strand = strand
         self.chromosome = chromosome
         self.ix = ix
-
-        for name, value in kwargs.iteritems():
-            setattr(self, name, value)
-
-    @classmethod
-    def from_row(cls, row):
-        """
-        Create a :class:`~GenomicRegion` from a PyTables row.
-        """
-        strand = row['strand']
-        if strand == 0:
-            strand = None
-        return cls(start=row["start"], end=row["end"],
-                   strand=strand, chromosome=row["chromosome"])
 
     @classmethod
     def from_string(cls, region_string):
@@ -86,7 +65,6 @@ class GenomicRegion(TableObject):
         chromosome = None
         start = None
         end = None
-        strand = None
 
         # strip whitespace
         no_space_region_string = "".join(region_string.split())
@@ -117,41 +95,7 @@ class GenomicRegion(TableObject):
                 if not end > start:
                     raise ValueError("The end coordinate must be bigger than the start.")
 
-        # there is strand information
-        if len(fields) > 2:
-            if fields[2] == '+' or fields[2] == '+1' or fields[2] == '1':
-                strand = 1
-            elif fields[2] == '-' or fields[2] == '-1':
-                strand = -1
-            else:
-                raise ValueError("Strand only can be one of '+', '-', '+1', '-1', and '1'")
-        return cls(start=start, end=end, chromosome=chromosome, strand=strand)
-
-    def to_string(self):
-        """
-        Convert this :class:`~GenomicRegion` to its string representation.
-
-        :return: str
-        """
-        region_string = ''
-        if self.chromosome is not None:
-            region_string += '%s' % self.chromosome
-
-            if self.start is not None:
-                region_string += ':%d' % self.start
-
-                if self.end is not None:
-                    region_string += '-%d' % self.end
-
-                if self.strand is not None:
-                    if self.strand == 1:
-                        region_string += ':+'
-                    else:
-                        region_string += ':-'
-        return region_string
-
-    def __repr__(self):
-        return self.to_string()
+        return cls(start=start, end=end, chromosome=chromosome)
 
     def overlaps(self, region):
         """
@@ -236,7 +180,7 @@ class HicRegionFileReader(object):
                     chromosome = fields[0]
                     start = int(fields[1])
                     end = int(fields[2])
-                    regions.append([chromosome, start, end])
+                    regions.append(GenomicRegion(chromosome=chromosome, start=start, end=end))
         self.r = regions
 
     def regions(self, file_name=None):
@@ -254,7 +198,7 @@ def _get_boundary_distances(regions):
         last_chromosome = None
         last_chromosome_index = 0
         for i, region in enumerate(regions):
-            chromosome = region[0]
+            chromosome = region.chromosome
             if last_chromosome is not None and chromosome != last_chromosome:
                 chromosome_length = i-last_chromosome_index
                 for j in xrange(chromosome_length):
@@ -271,9 +215,9 @@ def _get_boundary_distances(regions):
 def directionality_index(hic, regions=None, window_size=2000000):
     if regions is None:
         for i in xrange(hic.shape[0]):
-            regions.append(['', i, i])
+            regions.append(GenomicRegion(chromosome='', start=i, end=i))
 
-    bin_size = regions[0][2]-regions[0][1]+1
+    bin_size = regions[0].end-regions[0].start+1
     bin_distance = int(window_size/bin_size)
     if window_size % bin_size > 0:
         bin_distance += 1
@@ -339,14 +283,14 @@ def kth_diag_indices(n, k):
 def impute_missing_bins(hic_matrix, regions=None, per_chromosome=True, stat=np.ma.mean):
     if regions is None:
         for i in xrange(hic_matrix.shape[0]):
-            regions.append(['', i, i])
+            regions.append(GenomicRegion(chromosome='', start=i, end=i))
 
     chr_bins = dict()
     for i, region in enumerate(regions):
-        if region[0] not in chr_bins:
-            chr_bins[region[0]] = [i, i]
+        if region.chromosome not in chr_bins:
+            chr_bins[region.chromosome] = [i, i]
         else:
-            chr_bins[region[0]][1] = i
+            chr_bins[region.chromosome][1] = i
 
     n = len(regions)
     if not hasattr(hic_matrix, "mask"):
@@ -384,19 +328,19 @@ def insulation_index(hic_matrix, regions=None, window_size=2000000, relative=Fal
                      aggr_func=np.ma.mean, impute_missing=False):
     if regions is None:
         for i in xrange(hic_matrix.shape[0]):
-            regions.append(['', i, i])
+            regions.append(GenomicRegion(chromosome='', start=i, end=i))
 
-    bin_size = regions[0][2]-regions[0][1]+1
+    bin_size = regions[0].end-regions[0].start+1
     d = int(window_size/bin_size)
     if window_size % bin_size > 0:
         d += 1
 
     chr_bins = dict()
     for i, region in enumerate(regions):
-        if region[0] not in chr_bins:
-            chr_bins[region[0]] = [i, i]
+        if region.chromosome not in chr_bins:
+            chr_bins[region.chromosome] = [i, i]
         else:
-            chr_bins[region[0]][1] = i
+            chr_bins[region.chromosome][1] = i
 
     print chr_bins
 
@@ -411,8 +355,8 @@ def insulation_index(hic_matrix, regions=None, window_size=2000000, relative=Fal
     ins_matrix = np.empty(n)
     skipped = 0
     for i, r in enumerate(regions):
-        if (i - chr_bins[r[0]][0] < d or
-                chr_bins[r[0]][1] - i <= d + 1):
+        if (i - chr_bins[r.chromosome][0] < d or
+                chr_bins[r.chromosome][1] - i <= d + 1):
             ins_matrix[i] = np.nan
             continue
         if is_masked and hic_matrix.mask[i, i]:
@@ -434,12 +378,10 @@ def insulation_index(hic_matrix, regions=None, window_size=2000000, relative=Fal
             continue
 
         if not relative:
-            print ins_slice
             if impute_missing and is_masked:
                 ins_matrix[i] = aggr_func(hic_matrix[ins_slice].data)
             else:
                 s = aggr_func(hic_matrix[ins_slice])
-                print s
                 ins_matrix[i] = s
         else:
             if not impute_missing and not is_masked:
