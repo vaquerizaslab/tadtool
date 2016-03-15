@@ -179,3 +179,77 @@ def impute_missing_bins(hic_matrix, regions=None, per_chromosome=True, stat=np.m
     # Copying upper triangle to lower triangle
     imputed[np.tril_indices(n)] = imputed.T[np.tril_indices(n)]
     return imputed
+
+
+def insulation_index(hic_matrix, regions=None, window_size=2000000, relative=False, mask_thresh=.5,
+                     aggr_func=np.ma.mean, impute_missing=False):
+    if regions is None:
+        for i in xrange(hic_matrix.shape[0]):
+            regions.append(['', i, i])
+
+    bin_size = regions[0][2]-regions[0][1]+1
+    d = int(window_size/bin_size)
+    if window_size % bin_size > 0:
+        d += 1
+
+    chr_bins = dict()
+    for i, region in enumerate(regions):
+        if region[0] not in chr_bins:
+            chr_bins[region[0]] = [i, i]
+        else:
+            chr_bins[region[0]][1] = i
+
+    print chr_bins
+
+    if impute_missing:
+        hic_matrix = impute_missing_bins(hic_matrix, regions=regions)
+
+    is_masked = False
+    if hasattr(hic_matrix, 'mask'):
+        is_masked = True
+
+    n = len(regions)
+    ins_matrix = np.empty(n)
+    skipped = 0
+    for i, r in enumerate(regions):
+        if (i - chr_bins[r[0]][0] < d or
+                chr_bins[r[0]][1] - i <= d + 1):
+            ins_matrix[i] = np.nan
+            continue
+        if is_masked and hic_matrix.mask[i, i]:
+            ins_matrix[i] = np.nan
+            continue
+
+        up_rel_slice = (slice(i - d, i), slice(i - d, i))
+        down_rel_slice = (slice(i + 1, i + d + 1), slice(i + 1, i + d + 1))
+        ins_slice = (slice(i + 1, i + d + 1), slice(i - d, i))
+
+        if (is_masked and ((relative and np.sum(hic_matrix.mask[up_rel_slice]) > d*d*mask_thresh) or
+                (relative and np.sum(hic_matrix.mask[down_rel_slice]) > d*d*mask_thresh) or
+                np.sum(hic_matrix.mask[ins_slice]) > d*d*mask_thresh)):
+            # If too close to the edge of chromosome or
+            # if more than half of the entries in this quadrant are masked (unmappable)
+            # exclude it from the analysis
+            skipped += 1
+            ins_matrix[i] = np.nan
+            continue
+
+        if not relative:
+            print ins_slice
+            if impute_missing and is_masked:
+                ins_matrix[i] = aggr_func(hic_matrix[ins_slice].data)
+            else:
+                s = aggr_func(hic_matrix[ins_slice])
+                print s
+                ins_matrix[i] = s
+        else:
+            if not impute_missing and not is_masked:
+                ins_matrix[i] = (aggr_func(hic_matrix[ins_slice]) /
+                                 aggr_func(np.ma.dstack((hic_matrix[up_rel_slice],
+                                                         hic_matrix[down_rel_slice]))))
+            else:
+                ins_matrix[i] = (aggr_func(hic_matrix[ins_slice].data) /
+                                 aggr_func(np.ma.dstack((hic_matrix[up_rel_slice].data,
+                                                         hic_matrix[down_rel_slice].data))))
+
+    return ins_matrix
