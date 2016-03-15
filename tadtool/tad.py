@@ -67,3 +67,41 @@ def _get_boundary_distances(regions):
             boundary_dist[last_chromosome_index+j] = min(j, n_bins-last_chromosome_index-1-j)
 
         return boundary_dist
+
+
+def directionality_index(hic, regions=None, window_size=2000000):
+    if regions is None:
+        for i in xrange(hic.shape[0]):
+            regions.append(['', i, i])
+
+    bin_size = regions[0][2]-regions[0][1]+1
+    bin_distance = int(window_size/bin_size)
+    if window_size % bin_size > 0:
+        bin_distance += 1
+
+    n_bins = len(regions)
+    boundary_dist = _get_boundary_distances(regions)
+
+    left_sums = np.zeros(n_bins)
+    right_sums = np.zeros(n_bins)
+    for source in xrange(hic.shape[0]):
+        for sink in xrange(source, hic.shape[1]):
+            weight = hic[source, sink]
+
+            if source == sink:
+                continue
+            if sink - source <= bin_distance:
+                if boundary_dist[sink] >= sink-source:
+                    left_sums[sink] += weight
+                if boundary_dist[source] >= sink-source:
+                    right_sums[source] += weight
+
+    di = np.zeros(n_bins)
+    for i in xrange(n_bins):
+        A = left_sums[i]
+        B = right_sums[i]
+        E = (A+B)/2
+        if E != 0 and B-A != 0:
+            di[i] = ((B-A)/abs(B-A)) * ((((A-E)**2)/E) + (((B-E)**2)/E))
+
+    return di
