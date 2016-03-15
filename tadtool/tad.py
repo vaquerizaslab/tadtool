@@ -124,3 +124,14 @@ def masked_matrix(matrix, all_zero=False):
     mask[:, col_zero] = np.True_
     mask[row_zero, :] = np.True_
     return np.ma.MaskedArray(matrix, mask=mask)
+
+
+def kth_diag_indices(n, k):
+    # http://stackoverflow.com/questions/10925671/numpy-k-th-diagonal-indices
+    rows, cols = np.diag_indices(n)
+    if k < 0:
+        return rows[:k], cols[-k:]
+    elif k > 0:
+        return rows[k:], cols[:-k]
+    else:
+        return rows, cols
