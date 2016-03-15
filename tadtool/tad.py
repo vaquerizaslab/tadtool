@@ -2,6 +2,205 @@ from __future__ import division
 import numpy as np
 
 
+class GenomicRegion(TableObject):
+    """
+    Class representing a genomic region.
+
+    .. attribute:: chromosome
+
+        Name of the chromosome this region is located on
+
+    .. attribute:: start
+
+        Start position of the region in base pairs
+
+    .. attribute:: end
+
+        End position of the region in base pairs
+
+    .. attribute:: strand
+
+        Strand this region is on (+1, -1)
+
+    .. attribute:: ix
+
+        Index of the region in the context of all genomic
+        regions.
+
+    """
+
+    def __init__(self, start, end, chromosome=None, strand=None, ix=None, **kwargs):
+        """
+        Initialize this object.
+
+        :param start: Start position of the region in base pairs
+        :param end: End position of the region in base pairs
+        :param chromosome: Name of the chromosome this region is located on
+        :param strand: Strand this region is on (+1, -1)
+        :param ix: Index of the region in the context of all genomic
+                   regions.
+        """
+        self.start = start
+        self.end = end
+        if strand == "+":
+            strand = 1
+        elif strand == "-":
+            strand = -1
+        elif strand == "0" or strand == ".":
+            strand = None
+        self.strand = strand
+        self.chromosome = chromosome
+        self.ix = ix
+
+        for name, value in kwargs.iteritems():
+            setattr(self, name, value)
+
+    @classmethod
+    def from_row(cls, row):
+        """
+        Create a :class:`~GenomicRegion` from a PyTables row.
+        """
+        strand = row['strand']
+        if strand == 0:
+            strand = None
+        return cls(start=row["start"], end=row["end"],
+                   strand=strand, chromosome=row["chromosome"])
+
+    @classmethod
+    def from_string(cls, region_string):
+        """
+        Convert a string into a :class:`~GenomicRegion`.
+
+        This is a very useful convenience function to quickly
+        define a :class:`~GenomicRegion` object from a descriptor
+        string.
+
+        :param region_string: A string of the form
+                              <chromosome>[:<start>-<end>[:<strand>]]
+                              (with square brackets indicating optional
+                              parts of the string). If any optional
+                              part of the string is omitted, intuitive
+                              defaults will be chosen.
+        :return: :class:`~GenomicRegion`
+        """
+        chromosome = None
+        start = None
+        end = None
+        strand = None
+
+        # strip whitespace
+        no_space_region_string = "".join(region_string.split())
+        fields = no_space_region_string.split(':')
+
+        if len(fields) > 3:
+            raise ValueError("Genomic range string must be of the form <chromosome>[:<start>-<end>:[<strand>]]")
+
+        # there is chromosome information
+        if len(fields) > 0:
+            chromosome = fields[0]
+
+        # there is range information
+        if len(fields) > 1 and fields[1] != '':
+            start_end_bp = fields[1].split('-')
+            if len(start_end_bp) > 0:
+                try:
+                    start = int(start_end_bp[0])
+                except ValueError:
+                    raise ValueError("Start of genomic range must be integer")
+
+            if len(start_end_bp) > 1:
+                try:
+                    end = int(start_end_bp[1])
+                except ValueError:
+                    raise ValueError("End of genomic range must be integer")
+
+                if not end > start:
+                    raise ValueError("The end coordinate must be bigger than the start.")
+
+        # there is strand information
+        if len(fields) > 2:
+            if fields[2] == '+' or fields[2] == '+1' or fields[2] == '1':
+                strand = 1
+            elif fields[2] == '-' or fields[2] == '-1':
+                strand = -1
+            else:
+                raise ValueError("Strand only can be one of '+', '-', '+1', '-1', and '1'")
+        return cls(start=start, end=end, chromosome=chromosome, strand=strand)
+
+    def to_string(self):
+        """
+        Convert this :class:`~GenomicRegion` to its string representation.
+
+        :return: str
+        """
+        region_string = ''
+        if self.chromosome is not None:
+            region_string += '%s' % self.chromosome
+
+            if self.start is not None:
+                region_string += ':%d' % self.start
+
+                if self.end is not None:
+                    region_string += '-%d' % self.end
+
+                if self.strand is not None:
+                    if self.strand == 1:
+                        region_string += ':+'
+                    else:
+                        region_string += ':-'
+        return region_string
+
+    def __repr__(self):
+        return self.to_string()
+
+    def overlaps(self, region):
+        """
+        Check if this region overlaps with the specified region.
+
+        :param region: :class:`~GenomicRegion` object or string
+        """
+        if isinstance(region, str):
+            region = GenomicRegion.from_string(region)
+
+        if region.chromosome != self.chromosome:
+            return False
+
+        if region.start <= self.end and region.end >= self.start:
+            return True
+        return False
+
+    def contains(self, region):
+        """
+        Check if the specified region is completely contained in this region.
+
+        :param region: :class:`~GenomicRegion` object or string
+        """
+        if isinstance(region, str):
+            region = GenomicRegion.from_string(region)
+
+        if region.chromosome != self.chromosome:
+            return False
+
+        if region.start >= self.start and region.end <= self.end:
+            return True
+        return False
+
+    def _equals(self, region):
+        if region.chromosome != self.chromosome:
+            return False
+        if region.start != self.start:
+            return False
+        if region.end != self.end:
+            return False
+        return True
+
+    def __eq__(self, other):
+        return self._equals(other)
+
+    def __ne__(self, other):
+        return not self._equals(other)
+
+
 class HicMatrixFileReader(object):
     def __init__(self, file_name=None):
         self.m = None
