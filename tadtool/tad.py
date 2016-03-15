@@ -135,3 +135,47 @@ def kth_diag_indices(n, k):
         return rows[k:], cols[:-k]
     else:
         return rows, cols
+
+
+def impute_missing_bins(hic_matrix, regions=None, per_chromosome=True, stat=np.ma.mean):
+    if regions is None:
+        for i in xrange(hic_matrix.shape[0]):
+            regions.append(['', i, i])
+
+    chr_bins = dict()
+    for i, region in enumerate(regions):
+        if region[0] not in chr_bins:
+            chr_bins[region[0]] = [i, i]
+        else:
+            chr_bins[region[0]][1] = i
+
+    n = len(regions)
+    if not hasattr(hic_matrix, "mask"):
+        hic_matrix = masked_matrix(hic_matrix)
+
+    imputed = hic_matrix.copy()
+    if per_chromosome:
+        for c_start, c_end in chr_bins.itervalues():
+            # Correcting intrachromoc_startmal contacts by mean contact count at each diagonal
+            for i in range(c_end - c_start):
+                ind = kth_diag_indices(c_end - c_start, -i)
+                diag = imputed[c_start:c_end, c_start:c_end][ind]
+                diag[diag.mask] = stat(diag)
+                imputed[c_start:c_end, c_start:c_end][ind] = diag
+            # Correcting interchromoc_startmal contacts by mean of all contact counts between
+            # each set of chromoc_startmes
+            for other_start, other_end in chr_bins.itervalues():
+                # Only correct upper triangle
+                if other_start <= c_start:
+                    continue
+                inter = imputed[c_start:c_end, other_start:other_end]
+                inter[inter.mask] = stat(inter)
+                imputed[c_start:c_end, other_start:other_end] = inter
+    else:
+        for i in range(n):
+            diag = imputed[kth_diag_indices(n, -i)]
+            diag[diag.mask] = stat(diag)
+            imputed[kth_diag_indices(n, -i)] = diag
+    # Copying upper triangle to lower triangle
+    imputed[np.tril_indices(n)] = imputed.T[np.tril_indices(n)]
+    return imputed
