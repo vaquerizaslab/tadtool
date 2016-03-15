@@ -46,3 +46,24 @@ class HicRegionFileReader(object):
         else:
             raise ValueError("Either provide a file name or explicitly use 'load' before requesting regions")
         return self.r
+
+
+def _get_boundary_distances(regions):
+        n_bins = len(regions)
+        # find distances to chromosome boundaries in bins
+        boundary_dist = np.zeros(n_bins, dtype=int)
+        last_chromosome = None
+        last_chromosome_index = 0
+        for i, region in enumerate(regions):
+            chromosome = region[0]
+            if last_chromosome is not None and chromosome != last_chromosome:
+                chromosome_length = i-last_chromosome_index
+                for j in xrange(chromosome_length):
+                    boundary_dist[last_chromosome_index+j] = min(j, i-last_chromosome_index-1-j)
+                last_chromosome_index = i
+            last_chromosome = chromosome
+        chromosome_length = n_bins-last_chromosome_index
+        for j in xrange(chromosome_length):
+            boundary_dist[last_chromosome_index+j] = min(j, n_bins-last_chromosome_index-1-j)
+
+        return boundary_dist
