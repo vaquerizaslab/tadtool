@@ -416,3 +416,17 @@ def insulation_index(hic_matrix, regions=None, window_size=2000000, relative=Fal
                                                          hic_matrix[down_rel_slice].data))))
 
     return ins_matrix
+
+
+def data_array(hic_matrix, regions, tad_method, window_sizes=list(xrange(0, 2000000, 10000)), **kwargs):
+    if regions is None:
+        for i in xrange(hic_matrix.shape[0]):
+            regions.append(GenomicRegion(chromosome='', start=i, end=i))
+
+    ws = []
+    da = []
+    for window_size in window_sizes:
+        ws.append(window_size)
+        da.append(tad_method(hic_matrix, regions, window_size, **kwargs))
+
+    return da, ws
