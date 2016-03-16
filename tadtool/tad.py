@@ -36,7 +36,6 @@ class GenomicRegion(object):
         :param start: Start position of the region in base pairs
         :param end: End position of the region in base pairs
         :param chromosome: Name of the chromosome this region is located on
-        :param strand: Strand this region is on (+1, -1)
         :param ix: Index of the region in the context of all genomic
                    regions.
         """
@@ -143,6 +142,29 @@ class GenomicRegion(object):
 
     def __ne__(self, other):
         return not self._equals(other)
+
+
+def sub_matrix_regions(hic_matrix, regions, region):
+    if isinstance(region, basestring):
+        region = GenomicRegion.from_string(region)
+
+    sub_regions = []
+    start_ix = None
+    end_ix = None
+    for i, r in enumerate(regions):
+        if r.start <= region.end and r.end >= region.start:
+            if start_ix is None:
+                start_ix = i
+            end_ix = i
+            sub_regions.append(r)
+        else:
+            if end_ix is not None:
+                break
+
+    if start_ix is None:
+        return np.empty((0, 0)), sub_regions
+
+    return hic_matrix[start_ix:end_ix+1, start_ix:end_ix+1], sub_regions
 
 
 class HicMatrixFileReader(object):
