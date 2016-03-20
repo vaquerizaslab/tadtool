@@ -1,5 +1,6 @@
 from __future__ import division
 import numpy as np
+import progressbar
 
 
 class GenomicRegion(object):
@@ -143,12 +144,15 @@ class GenomicRegion(object):
     def __ne__(self, other):
         return not self._equals(other)
 
+    def copy(self):
+        return GenomicRegion(chromosome=self.chromosome, start=self.start, end=self.end)
 
-def sub_matrix_regions(hic_matrix, regions, region):
+
+def sub_regions(regions, region):
     if isinstance(region, basestring):
         region = GenomicRegion.from_string(region)
 
-    sub_regions = []
+    sr = []
     start_ix = None
     end_ix = None
     for i, r in enumerate(regions):
@@ -156,15 +160,45 @@ def sub_matrix_regions(hic_matrix, regions, region):
             if start_ix is None:
                 start_ix = i
             end_ix = i
-            sub_regions.append(r)
+            sr.append(r.copy())
         else:
             if end_ix is not None:
                 break
 
-    if start_ix is None:
-        return np.empty((0, 0)), sub_regions
+    return sr, start_ix, end_ix
 
-    return hic_matrix[start_ix:end_ix+1, start_ix:end_ix+1], sub_regions
+
+def sub_matrix_regions(hic_matrix, regions, region):
+    sr, start_ix, end_ix = sub_regions(regions, region)
+
+    if start_ix is None:
+        return np.empty((0, 0)), sr
+
+    return np.copy(hic_matrix[start_ix:end_ix+1, start_ix:end_ix+1]), sr
+
+
+def sub_data_regions(data, regions, region):
+    sr, start_ix, end_ix = sub_regions(regions, region)
+
+    if start_ix is None:
+        return np.empty((0, 0)), sr
+
+    if not isinstance(data, np.ndarray):
+        data = np.array(data)
+
+    return np.copy(data[:, start_ix:end_ix+1]), sr
+
+
+def sub_vector_regions(data, regions, region):
+    sr, start_ix, end_ix = sub_regions(regions, region)
+
+    if start_ix is None:
+        return np.empty((0, 0)), sr
+
+    if not isinstance(data, np.ndarray):
+        data = np.array(data)
+
+    return np.copy(data[start_ix:end_ix+1]), sr
 
 
 class HicMatrixFileReader(object):
@@ -347,7 +381,7 @@ def impute_missing_bins(hic_matrix, regions=None, per_chromosome=True, stat=np.m
 
 
 def insulation_index(hic_matrix, regions=None, window_size=2000000, relative=False, mask_thresh=.5,
-                     aggr_func=np.ma.mean, impute_missing=False):
+                     aggr_func=np.nanmean, impute_missing=False):
     if regions is None:
         for i in xrange(hic_matrix.shape[0]):
             regions.append(GenomicRegion(chromosome='', start=i, end=i))
@@ -364,8 +398,6 @@ def insulation_index(hic_matrix, regions=None, window_size=2000000, relative=Fal
         else:
             chr_bins[region.chromosome][1] = i
 
-    print chr_bins
-
     if impute_missing:
         hic_matrix = impute_missing_bins(hic_matrix, regions=regions)
 
@@ -377,10 +409,13 @@ def insulation_index(hic_matrix, regions=None, window_size=2000000, relative=Fal
     ins_matrix = np.empty(n)
     skipped = 0
     for i, r in enumerate(regions):
+        # too close to chromosome edge
         if (i - chr_bins[r.chromosome][0] < d or
                 chr_bins[r.chromosome][1] - i <= d + 1):
             ins_matrix[i] = np.nan
             continue
+
+        # masked region
         if is_masked and hic_matrix.mask[i, i]:
             ins_matrix[i] = np.nan
             continue
@@ -401,7 +436,8 @@ def insulation_index(hic_matrix, regions=None, window_size=2000000, relative=Fal
 
         if not relative:
             if impute_missing and is_masked:
-                ins_matrix[i] = aggr_func(hic_matrix[ins_slice].data)
+                s = aggr_func(hic_matrix[ins_slice].data)
+                ins_matrix[i] = s
             else:
                 s = aggr_func(hic_matrix[ins_slice])
                 ins_matrix[i] = s
@@ -418,15 +454,30 @@ def insulation_index(hic_matrix, regions=None, window_size=2000000, relative=Fal
     return ins_matrix
 
 
-def data_array(hic_matrix, regions, tad_method=directionality_index, window_sizes=list(xrange(0, 2000000, 10000)), **kwargs):
+def data_array(hic_matrix, regions, tad_method=directionality_index,
+               window_sizes=list(xrange(20000, 1000000, 20000)), **kwargs):
     if regions is None:
         for i in xrange(hic_matrix.shape[0]):
             regions.append(GenomicRegion(chromosome='', start=i, end=i))
 
+    try:
+        l = len(window_sizes)
+    except TypeError:
+        l = None
+
+    pb = progressbar.ProgressBar(max_value=l)
+    if l is not None:
+        pb.start()
+
     ws = []
     da = []
-    for window_size in window_sizes:
+    for i, window_size in enumerate(window_sizes):
+        if l is not None:
+            pb.update(i)
         ws.append(window_size)
         da.append(tad_method(hic_matrix, regions, window_size, **kwargs))
 
-    return da, ws
+    if l is not None:
+        pb.finish()
+
+    return np.array(da), ws
