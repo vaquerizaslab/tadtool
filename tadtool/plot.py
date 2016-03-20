@@ -4,10 +4,12 @@ import matplotlib as mpl
 from matplotlib.ticker import MaxNLocator, Formatter, Locator
 from matplotlib.widgets import Slider
 import matplotlib.pyplot as plt
-from tadtool.tad import GenomicRegion, sub_matrix_regions
+from tadtool.tad import GenomicRegion, sub_matrix_regions, sub_data_regions, \
+    data_array, insulation_index, sub_vector_regions
 import math
 import copy
 import numpy as np
+from bisect import bisect_left
 
 
 class BasePlotter(object):
@@ -20,15 +22,11 @@ class BasePlotter(object):
         self.title = title
 
     @abstractmethod
-    def _plot(self, region=None):
+    def _plot(self, region=None, **kwargs):
         raise NotImplementedError("Subclasses need to override _plot function")
 
     @abstractmethod
-    def _refresh(self, region=None):
-        raise NotImplementedError("Subclasses need to override _refresh function")
-
-    @abstractmethod
-    def plot(self, region=None):
+    def plot(self, region=None, **kwargs):
         raise NotImplementedError("Subclasses need to override plot function")
 
     @property
@@ -179,7 +177,7 @@ class BasePlotter1D(BasePlotter):
     def __init__(self, title):
         BasePlotter.__init__(self, title=title)
 
-    def plot(self, region=None, ax=None):
+    def plot(self, region=None, ax=None, **kwargs):
         if isinstance(region, basestring):
             region = GenomicRegion.from_string(region)
         if ax:
@@ -189,7 +187,7 @@ class BasePlotter1D(BasePlotter):
         self.ax.xaxis.set_major_locator(GenomeCoordLocator(nbins=5))
         self.ax.xaxis.set_minor_locator(MinorGenomeCoordLocator(n=5))
         self.ax.set_title(self.title)
-        self._plot(region)
+        self._plot(region, **kwargs)
         self.ax.set_xlim(region.start, region.end)
         return self.fig, self.ax
 
@@ -254,7 +252,7 @@ class HicPlot(BasePlotter1D, BasePlotterHic):
         self.max_dist = max_dist
         self.hicmesh = None
 
-    def _plot(self, region=None):
+    def _plot(self, region=None, cax=None):
         if region is None:
             raise ValueError("Cannot plot triangle plot for whole genome.")
 
@@ -295,7 +293,7 @@ class HicPlot(BasePlotter1D, BasePlotterHic):
         # hide background patch
         self.ax.patch.set_visible(False)
         if self.show_colorbar:
-            self.add_colorbar(None)
+            self.add_colorbar(cax)
 
     def set_clim(self, vmin, vmax):
         self.hicmesh.set_clim(vmin=vmin, vmax=vmax)
@@ -303,8 +301,127 @@ class HicPlot(BasePlotter1D, BasePlotterHic):
             self.colorbar.set_clim(vmin=vmin, vmax=vmax)
             self.colorbar.draw_all()
 
-    def _refresh(self, region=None):
-        pass
+
+class DataArrayPlot(BasePlotter1D):
+    def __init__(self, data, window_sizes=None, regions=None, title='', midpoint=None, colormap='plasma', vmax=None):
+        if regions is None:
+            regions = []
+            for i in xrange(data.shape[1]):
+                regions.append(GenomicRegion(chromosome='', start=i, end=i))
+        self.regions = regions
+
+        BasePlotter1D.__init__(self, title=title)
+        self.da = data
+        if window_sizes is None:
+            window_sizes = []
+            try:
+                l = len(data)
+            except TypeError:
+                l = data.shape[0]
+            for i in xrange(l):
+                window_sizes.append(i)
+
+        self.window_sizes = window_sizes
+        self.colormap = colormap
+        self.midpoint = midpoint
+        self.mesh = None
+        self.vmax = vmax
+
+    def _plot(self, region=None, cax=None):
+        da_sub, regions_sub = sub_data_regions(self.da, self.regions, region)
+
+        da_sub_masked = np.ma.MaskedArray(da_sub, mask=np.isnan(da_sub))
+        bin_coords = np.r_[[(x.start - 1) for x in regions_sub], regions_sub[-1].end]
+        x, y = np.meshgrid(bin_coords, self.window_sizes)
+
+        self.mesh = self.ax.pcolormesh(x, y, da_sub_masked, cmap=self.colormap, vmax=self.vmax)
+        self.colorbar = plt.colorbar(self.mesh, cax=cax, orientation="vertical")
+
+    def set_clim(self, vmin, vmax):
+        self.mesh.set_clim(vmin=vmin, vmax=vmax)
+        if self.colorbar is not None:
+            self.colorbar.set_clim(vmin=vmin, vmax=vmax)
+            self.colorbar.draw_all()
+
+
+class SimpleLinePlot(BasePlotter1D):
+    def __init__(self, data, regions=None, title=''):
+        BasePlotter1D.__init__(self, title=title)
+        if regions is None:
+            regions = []
+            for i in xrange(len(data)):
+                regions.append(GenomicRegion(chromosome='', start=i, end=i))
+
+        self.data = data
+        self.regions = regions
+        self.current_region = None
+        self.line = None
+
+    def _plot(self, region=None, cax=None):
+        self.current_region = region
+        data_sub, sr = sub_vector_regions(self.data, self.regions, region)
+        bin_coords = [(x.start - 1) for x in sr]
+        self.line, = self.ax.plot(bin_coords, data_sub)
+
+    def update(self, data, window_size, update_canvas=True):
+        data_sub, _ = sub_vector_regions(data, self.regions, self.current_region)
+        self.line.set_ydata(data_sub)
+        if update_canvas:
+                self.fig.canvas.draw()
+
+
+class DataLinePlot(BasePlotter1D):
+    def __init__(self, data, regions=None, title='', init_row=0):
+        BasePlotter1D.__init__(self, title=title)
+        if regions is None:
+            regions = []
+            for i in xrange(len(data)):
+                regions.append(GenomicRegion(chromosome='', start=i, end=i))
+
+        self.init_row = init_row
+        self.data = data
+        self.sr = None
+        self.da_sub = None
+        self.regions = regions
+        self.current_region = None
+        self.line = None
+        self.current_ix = init_row
+        self.current_cutoff = None
+        self.cutoff_line = None
+
+    def _new_region(self, region):
+        self.current_region = region
+        self.da_sub, self.sr = sub_data_regions(self.data, self.regions, region)
+
+    def _plot(self, region=None, cax=None):
+        self._new_region(region)
+        bin_coords = [(x.start - 1) for x in self.sr]
+        self.line, = self.ax.plot(bin_coords, self.da_sub[self.init_row])
+        self.current_cutoff = (self.ax.get_ylim()[1]-self.ax.get_ylim()[0])/2 + self.ax.get_ylim()[0]
+        self.cutoff_line = self.ax.axhline(self.current_cutoff, color='r')
+
+    def update(self, ix=None, cutoff=None, region=None, update_canvas=True):
+        if region is not None:
+            self._new_region(region)
+
+        if ix is not None and ix != self.current_ix:
+            ds = self.da_sub[ix]
+            self.current_ix = ix
+            self.line.set_ydata(ds)
+            self.ax.set_ylim((np.nanmin(ds), np.nanmax(ds)))
+
+            if cutoff is None:
+                self.update(cutoff=(self.ax.get_ylim()[1]-self.ax.get_ylim()[0])/2 + self.ax.get_ylim()[0],
+                            update_canvas=False)
+
+            if update_canvas:
+                self.fig.canvas.draw()
+
+        if cutoff is not None and cutoff != self.current_cutoff:
+            self.current_cutoff = cutoff
+            self.cutoff_line.set_ydata(self.current_cutoff)
+            if update_canvas:
+                self.fig.canvas.draw()
 
 
 class TADtoolPlot(object):
@@ -317,30 +434,103 @@ class TADtoolPlot(object):
                 regions.append(GenomicRegion(chromosome='', start=i, end=i))
         self.regions = regions
         self.norm = norm
+        self.fig = None
         self.max_dist = max_dist
         self.svmax = None
         self.min_value = np.nanmin(self.hic_matrix[np.nonzero(self.hic_matrix)])
+        self.min_value_data = None
         self.hic_plot = None
+        self.data_plot = None
+        self.line_plot = None
+        self.sdata = None
+        self.data_ax = None
+        self.line_ax = None
+        self.da = None
+        self.ws = None
+        self.current_window_size = None
+        self.window_size_text = None
+        self.tad_cutoff_text = None
         self.max_percentile = max_percentile
 
-    def slider_update(self, val):
+    def vmax_slider_update(self, val):
         self.hic_plot.set_clim(self.min_value, val)
+
+    def data_slider_update(self, val):
+        self.data_plot.set_clim(self.min_value_data, val)
 
     def plot(self, region=None):
         # set up plotting grid
-        fig = plt.figure(figsize=(20, 4))
-        ax1 = plt.subplot2grid((10, 1), (0, 0))
-        ax2 = plt.subplot2grid((10, 1), (1, 0), rowspan=9)
+        self.fig = plt.figure(figsize=(10, 10))
+        hic_vmax_slider_ax = plt.subplot2grid((30, 15), (0, 0), colspan=13)
+        hic_ax = plt.subplot2grid((30, 15), (1, 0), rowspan=9, colspan=13)
+        hp_cax = plt.subplot2grid((30, 15), (1, 14), rowspan=9, colspan=1)
+        line_ax = plt.subplot2grid((30, 15), (11, 0), rowspan=6, colspan=13, sharex=hic_ax)
+        line_cax = plt.subplot2grid((30, 15), (11, 13), rowspan=6, colspan=2)
+        data_vmax_slider_ax = plt.subplot2grid((30, 15), (18, 0), colspan=13)
+        data_ax = plt.subplot2grid((30, 15), (19, 0), rowspan=9, colspan=13, sharex=hic_ax)
+        da_cax = plt.subplot2grid((30, 15), (19, 14), rowspan=9, colspan=1)
 
         # add subplot content
         max_value = np.nanpercentile(self.hic_matrix, self.max_percentile)
         init_value = .7*max_value
 
+        # HI-C VMAX SLIDER
+        self.svmax = Slider(hic_vmax_slider_ax, 'vmax', self.min_value, max_value, valinit=init_value, color='black')
+        self.svmax.on_changed(self.vmax_slider_update)
+
+        # HI-C
         self.hic_plot = HicPlot(self.hic_matrix, self.regions, max_dist=self.max_dist, norm=self.norm,
                                 vmax=init_value, vmin=self.min_value)
-        self.svmax = Slider(ax1, 'vmax', self.min_value, max_value, valinit=init_value)
-        self.svmax.on_changed(self.slider_update)
+        self.hic_plot.plot(region, ax=hic_ax, cax=hp_cax)
 
-        self.hic_plot.plot(region, ax=ax2)
+        # generate data array
+        self.da, self.ws = data_array(hic_matrix=self.hic_matrix, regions=self.regions, tad_method=insulation_index)
+        self.min_value_data = np.nanmin(self.da[np.nonzero(self.da)])
+        max_value_data = np.nanpercentile(self.da, self.max_percentile)
+        init_value_data = .7*max_value_data
 
-        return fig, (ax1, ax2)
+        # LINE PLOT
+        da_ix = int(self.da.shape[0]/2)
+        self.line_plot = DataLinePlot(self.da, regions=self.regions, init_row=da_ix)
+        self.line_plot.plot(region, ax=line_ax)
+        self.line_ax = line_ax
+
+        # line info
+        self.current_window_size = self.ws[da_ix]
+        line_cax.text(.1, .8, 'Window size', fontweight='bold')
+        self.window_size_text = line_cax.text(.3, .6, str(self.current_window_size))
+        line_cax.text(.1, .4, 'TAD cutoff', fontweight='bold')
+        self.tad_cutoff_text = line_cax.text(.3, .2, "%.5f" % self.line_plot.current_cutoff)
+        line_cax.axis('off')
+
+        # DATA ARRAY SLIDER
+        self.sdata = Slider(data_vmax_slider_ax, 'vmax', self.min_value_data, max_value_data,
+                            valinit=init_value_data, color='black')
+        self.sdata.on_changed(self.data_slider_update)
+
+        # DATA ARRAY
+        self.data_plot = DataArrayPlot(self.da, self.ws, self.regions, vmax=init_value_data)
+        self.data_plot.plot(region, ax=data_ax, cax=da_cax)
+
+        # clean up
+        hic_ax.xaxis.set_visible(False)
+        line_ax.xaxis.set_visible(False)
+
+        # enable hover
+        self.data_ax = data_ax
+        cid = self.fig.canvas.mpl_connect('button_press_event', self.on_click)
+
+        return self.fig, (hic_vmax_slider_ax, hic_ax, line_ax, data_ax, hp_cax, da_cax)
+
+    def on_click(self, event):
+        if event.inaxes == self.data_ax:
+            ws_ix = bisect_left(self.ws, event.ydata)
+            self.current_window_size = self.ws[ws_ix]
+
+            self.line_plot.update(ix=ws_ix, update_canvas=False)
+            self.window_size_text.set_text(str(self.current_window_size))
+            self.fig.canvas.draw()
+        elif event.inaxes == self.line_ax:
+            self.line_plot.update(cutoff=event.ydata, update_canvas=False)
+            self.tad_cutoff_text.set_text("%.5f" % self.line_plot.current_cutoff)
+            self.fig.canvas.draw()
