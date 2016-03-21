@@ -3,9 +3,10 @@ from abc import ABCMeta, abstractmethod
 import matplotlib as mpl
 from matplotlib.ticker import MaxNLocator, Formatter, Locator
 from matplotlib.widgets import Slider
+import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 from tadtool.tad import GenomicRegion, sub_matrix_regions, sub_data_regions, \
-    data_array, insulation_index, sub_vector_regions
+    data_array, insulation_index, sub_vector_regions, sub_regions
 import math
 import copy
 import numpy as np
@@ -344,30 +345,32 @@ class DataArrayPlot(BasePlotter1D):
             self.colorbar.draw_all()
 
 
-class SimpleLinePlot(BasePlotter1D):
-    def __init__(self, data, regions=None, title=''):
+class TADPlot(BasePlotter1D):
+    def __init__(self, regions, title='', color='black'):
         BasePlotter1D.__init__(self, title=title)
-        if regions is None:
-            regions = []
-            for i in xrange(len(data)):
-                regions.append(GenomicRegion(chromosome='', start=i, end=i))
 
-        self.data = data
         self.regions = regions
+        self.color = color
         self.current_region = None
-        self.line = None
 
     def _plot(self, region=None, cax=None):
         self.current_region = region
-        data_sub, sr = sub_vector_regions(self.data, self.regions, region)
-        bin_coords = [(x.start - 1) for x in sr]
-        self.line, = self.ax.plot(bin_coords, data_sub)
+        sr, start_ix, end_ix = sub_regions(self.regions, region)
+        trans = self.ax.get_xaxis_transform()
+        for r in sr:
+            region_patch = patches.Rectangle(
+                (r.start, .2),
+                width=abs(r.end - r.start), height=.6,
+                transform=trans,
+                color=self.color
+            )
+            self.ax.add_patch(region_patch)
+        self.ax.axis('off')
 
-    def update(self, data, window_size, update_canvas=True):
-        data_sub, _ = sub_vector_regions(data, self.regions, self.current_region)
-        self.line.set_ydata(data_sub)
-        if update_canvas:
-                self.fig.canvas.draw()
+    def update(self, regions):
+        self.regions = regions
+        self.ax.cla()
+        self._plot(region=self.current_region)
 
 
 class DataLinePlot(BasePlotter1D):
@@ -440,6 +443,7 @@ class TADtoolPlot(object):
         self.min_value = np.nanmin(self.hic_matrix[np.nonzero(self.hic_matrix)])
         self.min_value_data = None
         self.hic_plot = None
+        self.tad_plot = None
         self.data_plot = None
         self.line_plot = None
         self.sdata = None
@@ -464,18 +468,19 @@ class TADtoolPlot(object):
         hic_vmax_slider_ax = plt.subplot2grid((30, 15), (0, 0), colspan=13)
         hic_ax = plt.subplot2grid((30, 15), (1, 0), rowspan=9, colspan=13)
         hp_cax = plt.subplot2grid((30, 15), (1, 14), rowspan=9, colspan=1)
-        line_ax = plt.subplot2grid((30, 15), (11, 0), rowspan=6, colspan=13, sharex=hic_ax)
-        line_cax = plt.subplot2grid((30, 15), (11, 13), rowspan=6, colspan=2)
-        data_vmax_slider_ax = plt.subplot2grid((30, 15), (18, 0), colspan=13)
-        data_ax = plt.subplot2grid((30, 15), (19, 0), rowspan=9, colspan=13, sharex=hic_ax)
-        da_cax = plt.subplot2grid((30, 15), (19, 14), rowspan=9, colspan=1)
+        tad_ax = plt.subplot2grid((30, 15), (10, 0), rowspan=1, colspan=13, sharex=hic_ax)
+        line_ax = plt.subplot2grid((30, 15), (12, 0), rowspan=6, colspan=13, sharex=hic_ax)
+        line_cax = plt.subplot2grid((30, 15), (12, 13), rowspan=6, colspan=2)
+        data_vmax_slider_ax = plt.subplot2grid((30, 15), (19, 0), colspan=13)
+        data_ax = plt.subplot2grid((30, 15), (20, 0), rowspan=9, colspan=13, sharex=hic_ax)
+        da_cax = plt.subplot2grid((30, 15), (20, 14), rowspan=9, colspan=1)
 
         # add subplot content
         max_value = np.nanpercentile(self.hic_matrix, self.max_percentile)
         init_value = .7*max_value
 
         # HI-C VMAX SLIDER
-        self.svmax = Slider(hic_vmax_slider_ax, 'vmax', self.min_value, max_value, valinit=init_value, color='black')
+        self.svmax = Slider(hic_vmax_slider_ax, 'vmax', self.min_value, max_value, valinit=init_value, color='grey')
         self.svmax.on_changed(self.vmax_slider_update)
 
         # HI-C
@@ -488,6 +493,11 @@ class TADtoolPlot(object):
         self.min_value_data = np.nanmin(self.da[np.nonzero(self.da)])
         max_value_data = np.nanpercentile(self.da, self.max_percentile)
         init_value_data = .7*max_value_data
+
+        # TAD PLOT
+        self.tad_plot = TADPlot([GenomicRegion(start=26500000, end=28500000, chromosome='chr12'),
+                                 GenomicRegion(start=25000000, end=26300000, chromosome='chr12')])
+        self.tad_plot.plot(region=region, ax=tad_ax)
 
         # LINE PLOT
         da_ix = int(self.da.shape[0]/2)
@@ -505,7 +515,7 @@ class TADtoolPlot(object):
 
         # DATA ARRAY SLIDER
         self.sdata = Slider(data_vmax_slider_ax, 'vmax', self.min_value_data, max_value_data,
-                            valinit=init_value_data, color='black')
+                            valinit=init_value_data, color='grey')
         self.sdata.on_changed(self.data_slider_update)
 
         # DATA ARRAY
