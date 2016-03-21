@@ -481,3 +481,35 @@ def data_array(hic_matrix, regions, tad_method=directionality_index,
         pb.finish()
 
     return np.array(da), ws
+
+
+def call_tads_insulation_index(ii_results, cutoff, regions=None):
+    if regions is None:
+        for i in xrange(len(ii_results)):
+            regions.append(GenomicRegion(chromosome='', start=i, end=i))
+
+    if len(regions) != len(ii_results):
+        raise ValueError("Insulation index results and regions must be the same size!")
+
+    tad_regions = []
+    current_tad_start = None
+    current_tad_chromosome = None
+    for i, value in enumerate(ii_results):
+        current_region = regions[i]
+        if current_tad_chromosome is not None and current_region.chromosome != current_tad_chromosome:
+            tad_regions.append(GenomicRegion(chromosome=current_tad_chromosome, start=current_tad_start,
+                                             end=regions[i-1].end))
+            current_tad_chromosome = None
+            current_tad_start = None
+
+        if value >= cutoff:
+            if current_tad_start is None:
+                current_tad_start = current_region.start
+                current_tad_chromosome = current_region.chromosome
+        elif current_tad_start is not None:
+                tad_regions.append(GenomicRegion(chromosome=current_tad_chromosome, start=current_tad_start,
+                                                 end=regions[i-1].end))
+                current_tad_chromosome = None
+                current_tad_start = None
+
+    return tad_regions
