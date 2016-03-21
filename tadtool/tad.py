@@ -513,3 +513,52 @@ def call_tads_insulation_index(ii_results, cutoff, regions=None):
                 current_tad_start = None
 
     return tad_regions
+
+
+def call_tads_directionality_index(di_results, cutoff, regions=None):
+    if regions is None:
+        for i in xrange(len(di_results)):
+            regions.append(GenomicRegion(chromosome='', start=i, end=i))
+
+    tad_regions = []
+    last_upstream_bias_region = None
+    last_downstream_bias_region = None
+    for i, value in enumerate(di_results):
+        current_region = regions[i]
+        if last_upstream_bias_region is not None and current_region.chromosome != last_upstream_bias_region.chromosome:
+            tad_regions.append(GenomicRegion(chromosome=last_upstream_bias_region.chromosome,
+                                             start=last_upstream_bias_region.start,
+                                             end=regions[i-1].end))
+            last_upstream_bias_region = None
+            last_downstream_bias_region = None
+
+        # look for upstream bias site
+        if value >= cutoff:
+            # side-by-side TAD
+            if last_downstream_bias_region is not None and last_upstream_bias_region is not None:
+                tad = GenomicRegion(chromosome=last_downstream_bias_region.chromosome,
+                                    start=last_upstream_bias_region.start,
+                                    end=last_downstream_bias_region.end)
+                tad_regions.append(tad)
+                last_upstream_bias_region = None
+                last_downstream_bias_region = None
+
+            # beginning of TAD
+            if last_upstream_bias_region is None:
+                last_upstream_bias_region = current_region
+
+        if value <= -1*cutoff:
+            # potential end of TAD
+            if last_upstream_bias_region is not None:
+                last_downstream_bias_region = current_region
+
+        if abs(value) < cutoff:
+            # back to zero
+            if last_downstream_bias_region is not None and last_upstream_bias_region is not None:
+                tad = GenomicRegion(chromosome=last_downstream_bias_region.chromosome,
+                                    start=last_upstream_bias_region.start,
+                                    end=last_downstream_bias_region.end)
+                tad_regions.append(tad)
+                last_upstream_bias_region = None
+                last_downstream_bias_region = None
+    return tad_regions
