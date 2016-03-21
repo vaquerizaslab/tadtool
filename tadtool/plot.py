@@ -7,7 +7,8 @@ from matplotlib.widgets import Slider, Button
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 from tadtool.tad import GenomicRegion, sub_matrix_regions, sub_data_regions, \
-    data_array, insulation_index, sub_vector_regions, sub_regions, call_tads_insulation_index
+    data_array, insulation_index, sub_vector_regions, sub_regions, \
+    call_tads_insulation_index, directionality_index, call_tads_directionality_index
 import math
 import copy
 import numpy as np
@@ -432,7 +433,7 @@ class DataLinePlot(BasePlotter1D):
 
 class TADtoolPlot(object):
     def __init__(self, hic_matrix, regions=None, norm='lin', max_dist=3000000,
-                 max_percentile=99.99):
+                 max_percentile=99.99, algorithm='insulation'):
         self.hic_matrix = hic_matrix
         if regions is None:
             regions = []
@@ -442,6 +443,7 @@ class TADtoolPlot(object):
         self.norm = norm
         self.fig = None
         self.max_dist = max_dist
+        self.algorithm = algorithm
         self.svmax = None
         self.min_value = np.nanmin(self.hic_matrix[np.nonzero(self.hic_matrix)])
         self.min_value_data = None
@@ -463,6 +465,13 @@ class TADtoolPlot(object):
         self.button_save_tads = None
         self.button_save_vector = None
         self.button_save_matrix = None
+
+        if algorithm == 'insulation':
+            self.tad_algorithm = insulation_index
+            self.tad_calling_algorithm = call_tads_insulation_index
+        elif algorithm == 'directionality':
+            self.tad_algorithm = directionality_index
+            self.tad_calling_algorithm = call_tads_directionality_index
 
     def vmax_slider_update(self, val):
         self.hic_plot.set_clim(self.min_value, val)
@@ -553,7 +562,8 @@ class TADtoolPlot(object):
         self.hic_plot.plot(region, ax=hic_ax, cax=hp_cax)
 
         # generate data array
-        self.da, self.ws = data_array(hic_matrix=self.hic_matrix, regions=self.regions, tad_method=insulation_index)
+        self.da, self.ws = data_array(hic_matrix=self.hic_matrix, regions=self.regions,
+                                      tad_method=self.tad_algorithm)
         self.min_value_data = np.nanmin(self.da[np.nonzero(self.da)])
         max_value_data = np.nanpercentile(self.da, self.max_percentile)
         init_value_data = .7*max_value_data
@@ -574,7 +584,8 @@ class TADtoolPlot(object):
         line_cax.axis('off')
 
         # TAD PLOT
-        self.tad_regions = call_tads_insulation_index(self.da[da_ix], self.line_plot.current_cutoff, self.regions)
+        self.tad_regions = self.tad_calling_algorithm(self.da[da_ix], self.line_plot.current_cutoff, self.regions)
+
         self.tad_plot = TADPlot(self.tad_regions)
         self.tad_plot.plot(region=region, ax=tad_ax)
 
@@ -612,7 +623,7 @@ class TADtoolPlot(object):
                 self.tad_cutoff_text.set_text("%.5f" % self.line_plot.current_cutoff)
 
             # update TADs
-            self.tad_regions = call_tads_insulation_index(self.da[self.current_da_ix], self.line_plot.current_cutoff,
+            self.tad_regions = self.tad_calling_algorithm(self.da[self.current_da_ix], self.line_plot.current_cutoff,
                                                           self.regions)
             self.tad_plot.update(self.tad_regions)
             self.fig.canvas.draw()
