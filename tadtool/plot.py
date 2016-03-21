@@ -6,7 +6,7 @@ from matplotlib.widgets import Slider
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 from tadtool.tad import GenomicRegion, sub_matrix_regions, sub_data_regions, \
-    data_array, insulation_index, sub_vector_regions, sub_regions
+    data_array, insulation_index, sub_vector_regions, sub_regions, call_tads_insulation_index
 import math
 import copy
 import numpy as np
@@ -455,6 +455,8 @@ class TADtoolPlot(object):
         self.window_size_text = None
         self.tad_cutoff_text = None
         self.max_percentile = max_percentile
+        self.tad_regions = None
+        self.current_da_ix = None
 
     def vmax_slider_update(self, val):
         self.hic_plot.set_clim(self.min_value, val)
@@ -494,13 +496,9 @@ class TADtoolPlot(object):
         max_value_data = np.nanpercentile(self.da, self.max_percentile)
         init_value_data = .7*max_value_data
 
-        # TAD PLOT
-        self.tad_plot = TADPlot([GenomicRegion(start=26500000, end=28500000, chromosome='chr12'),
-                                 GenomicRegion(start=25000000, end=26300000, chromosome='chr12')])
-        self.tad_plot.plot(region=region, ax=tad_ax)
-
         # LINE PLOT
         da_ix = int(self.da.shape[0]/2)
+        self.current_da_ix = da_ix
         self.line_plot = DataLinePlot(self.da, regions=self.regions, init_row=da_ix)
         self.line_plot.plot(region, ax=line_ax)
         self.line_ax = line_ax
@@ -512,6 +510,11 @@ class TADtoolPlot(object):
         line_cax.text(.1, .4, 'TAD cutoff', fontweight='bold')
         self.tad_cutoff_text = line_cax.text(.3, .2, "%.5f" % self.line_plot.current_cutoff)
         line_cax.axis('off')
+
+        # TAD PLOT
+        self.tad_regions = call_tads_insulation_index(self.da[da_ix], self.line_plot.current_cutoff, self.regions)
+        self.tad_plot = TADPlot(self.tad_regions)
+        self.tad_plot.plot(region=region, ax=tad_ax)
 
         # DATA ARRAY SLIDER
         self.sdata = Slider(data_vmax_slider_ax, 'vmax', self.min_value_data, max_value_data,
@@ -533,14 +536,22 @@ class TADtoolPlot(object):
         return self.fig, (hic_vmax_slider_ax, hic_ax, line_ax, data_ax, hp_cax, da_cax)
 
     def on_click(self, event):
-        if event.inaxes == self.data_ax:
-            ws_ix = bisect_left(self.ws, event.ydata)
-            self.current_window_size = self.ws[ws_ix]
+        if event.inaxes == self.data_ax or event.inaxes == self.line_ax:
+            if event.inaxes == self.data_ax:
+                ws_ix = bisect_left(self.ws, event.ydata)
+                self.current_window_size = self.ws[ws_ix]
+                self.current_da_ix = ws_ix
 
-            self.line_plot.update(ix=ws_ix, update_canvas=False)
-            self.window_size_text.set_text(str(self.current_window_size))
-            self.fig.canvas.draw()
-        elif event.inaxes == self.line_ax:
-            self.line_plot.update(cutoff=event.ydata, update_canvas=False)
-            self.tad_cutoff_text.set_text("%.5f" % self.line_plot.current_cutoff)
-            self.fig.canvas.draw()
+                self.line_plot.update(ix=ws_ix, update_canvas=False)
+                self.tad_cutoff_text.set_text("%.5f" % self.line_plot.current_cutoff)
+                self.window_size_text.set_text(str(self.current_window_size))
+                self.fig.canvas.draw()
+            elif event.inaxes == self.line_ax:
+                self.line_plot.update(cutoff=event.ydata, update_canvas=False)
+                self.tad_cutoff_text.set_text("%.5f" % self.line_plot.current_cutoff)
+                self.fig.canvas.draw()
+
+            # update TADs
+            self.tad_regions = call_tads_insulation_index(self.da[self.current_da_ix], self.line_plot.current_cutoff,
+                                                          self.regions)
+            self.tad_plot.update(self.tad_regions)
