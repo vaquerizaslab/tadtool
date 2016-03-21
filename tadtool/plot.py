@@ -545,13 +545,12 @@ class TADtoolPlot(object):
                 self.line_plot.update(ix=ws_ix, update_canvas=False)
                 self.tad_cutoff_text.set_text("%.5f" % self.line_plot.current_cutoff)
                 self.window_size_text.set_text(str(self.current_window_size))
-                self.fig.canvas.draw()
             elif event.inaxes == self.line_ax:
                 self.line_plot.update(cutoff=event.ydata, update_canvas=False)
                 self.tad_cutoff_text.set_text("%.5f" % self.line_plot.current_cutoff)
-                self.fig.canvas.draw()
 
             # update TADs
             self.tad_regions = call_tads_insulation_index(self.da[self.current_da_ix], self.line_plot.current_cutoff,
                                                           self.regions)
             self.tad_plot.update(self.tad_regions)
+            self.fig.canvas.draw()
