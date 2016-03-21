@@ -1,8 +1,9 @@
 from __future__ import division, print_function
 from abc import ABCMeta, abstractmethod
 import matplotlib as mpl
+mpl.use('TkAgg')
 from matplotlib.ticker import MaxNLocator, Formatter, Locator
-from matplotlib.widgets import Slider
+from matplotlib.widgets import Slider, Button
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 from tadtool.tad import GenomicRegion, sub_matrix_regions, sub_data_regions, \
@@ -11,6 +12,8 @@ import math
 import copy
 import numpy as np
 from bisect import bisect_left
+import Tkinter
+import tkFileDialog
 
 
 class BasePlotter(object):
@@ -457,6 +460,9 @@ class TADtoolPlot(object):
         self.max_percentile = max_percentile
         self.tad_regions = None
         self.current_da_ix = None
+        self.button_save_tads = None
+        self.button_save_vector = None
+        self.button_save_matrix = None
 
     def vmax_slider_update(self, val):
         self.hic_plot.set_clim(self.min_value, val)
@@ -464,18 +470,74 @@ class TADtoolPlot(object):
     def data_slider_update(self, val):
         self.data_plot.set_clim(self.min_value_data, val)
 
+    def on_click_save_tads(self, event):
+        Tkinter.Tk().withdraw()  # Close the root window
+        save_path = tkFileDialog.asksaveasfilename()
+        with open(save_path, 'w') as o:
+            for region in self.tad_regions:
+                o.write("%s\t%d\t%d\n" % (region.chromosome, region.start, region.end))
+
+    def on_click_save_vector(self, event):
+        Tkinter.Tk().withdraw()  # Close the root window
+        save_path = tkFileDialog.asksaveasfilename()
+        da_sub = self.da[self.current_da_ix]
+        with open(save_path, 'w') as o:
+            for i, region in enumerate(self.regions):
+                o.write("%s\t%d\t%d\t%e\n" % (region.chromosome, region.start, region.end, da_sub[i]))
+
+    def on_click_save_matrix(self, event):
+        Tkinter.Tk().withdraw()  # Close the root window
+        save_path = tkFileDialog.asksaveasfilename()
+
+        with open(save_path, 'w') as o:
+            # write regions
+            for i, region in enumerate(self.regions):
+                o.write("%s:%d-%d" % (region.chromosome, region.start, region.end))
+                if i < len(self.regions)-1:
+                    o.write("\t")
+                else:
+                    o.write("\n")
+
+            # write matrix
+            n_rows = self.da.shape[0]
+            n_cols = self.da.shape[1]
+            for i in xrange(n_rows):
+                window_size = self.ws[i]
+                o.write("%d\t" % window_size)
+
+                for j in xrange(n_cols):
+                    o.write("%e" % self.da[i, j])
+                    if j < n_cols-1:
+                        o.write("\t")
+                    else:
+                        o.write("\n")
+
     def plot(self, region=None):
         # set up plotting grid
         self.fig = plt.figure(figsize=(10, 10))
-        hic_vmax_slider_ax = plt.subplot2grid((30, 15), (0, 0), colspan=13)
-        hic_ax = plt.subplot2grid((30, 15), (1, 0), rowspan=9, colspan=13)
-        hp_cax = plt.subplot2grid((30, 15), (1, 14), rowspan=9, colspan=1)
-        tad_ax = plt.subplot2grid((30, 15), (10, 0), rowspan=1, colspan=13, sharex=hic_ax)
-        line_ax = plt.subplot2grid((30, 15), (12, 0), rowspan=6, colspan=13, sharex=hic_ax)
-        line_cax = plt.subplot2grid((30, 15), (12, 13), rowspan=6, colspan=2)
-        data_vmax_slider_ax = plt.subplot2grid((30, 15), (19, 0), colspan=13)
-        data_ax = plt.subplot2grid((30, 15), (20, 0), rowspan=9, colspan=13, sharex=hic_ax)
-        da_cax = plt.subplot2grid((30, 15), (20, 14), rowspan=9, colspan=1)
+
+        # main plots
+        grid_size = (32, 15)
+        hic_vmax_slider_ax = plt.subplot2grid(grid_size, (0, 0), colspan=13)
+        hic_ax = plt.subplot2grid(grid_size, (1, 0), rowspan=9, colspan=13)
+        hp_cax = plt.subplot2grid(grid_size, (1, 14), rowspan=9, colspan=1)
+        tad_ax = plt.subplot2grid(grid_size, (10, 0), rowspan=1, colspan=13, sharex=hic_ax)
+        line_ax = plt.subplot2grid(grid_size, (12, 0), rowspan=6, colspan=13, sharex=hic_ax)
+        line_cax = plt.subplot2grid(grid_size, (12, 13), rowspan=6, colspan=2)
+        data_vmax_slider_ax = plt.subplot2grid(grid_size, (19, 0), colspan=13)
+        data_ax = plt.subplot2grid(grid_size, (20, 0), rowspan=9, colspan=13, sharex=hic_ax)
+        da_cax = plt.subplot2grid(grid_size, (20, 14), rowspan=9, colspan=1)
+
+        # buttons
+        save_tads_ax = plt.subplot2grid(grid_size, (31, 0), rowspan=1, colspan=4)
+        self.button_save_tads = Button(save_tads_ax, 'Save TADs')
+        self.button_save_tads.on_clicked(self.on_click_save_tads)
+        save_vector_ax = plt.subplot2grid(grid_size, (31, 5), rowspan=1, colspan=4)
+        self.button_save_vector = Button(save_vector_ax, 'Save current values')
+        self.button_save_vector.on_clicked(self.on_click_save_vector)
+        save_matrix_ax = plt.subplot2grid(grid_size, (31, 10), rowspan=1, colspan=4)
+        self.button_save_matrix = Button(save_matrix_ax, 'Save matrix')
+        self.button_save_matrix.on_clicked(self.on_click_save_matrix)
 
         # add subplot content
         max_value = np.nanpercentile(self.hic_matrix, self.max_percentile)
