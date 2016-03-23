@@ -378,7 +378,7 @@ class TADPlot(BasePlotter1D):
 
 
 class DataLinePlot(BasePlotter1D):
-    def __init__(self, data, regions=None, title='', init_row=0):
+    def __init__(self, data, regions=None, title='', init_row=0, is_symmetric=False):
         BasePlotter1D.__init__(self, title=title)
         if regions is None:
             regions = []
@@ -395,6 +395,8 @@ class DataLinePlot(BasePlotter1D):
         self.current_ix = init_row
         self.current_cutoff = None
         self.cutoff_line = None
+        self.cutoff_line_mirror = None
+        self.is_symmetric = is_symmetric
 
     def _new_region(self, region):
         self.current_region = region
@@ -406,6 +408,8 @@ class DataLinePlot(BasePlotter1D):
         self.line, = self.ax.plot(bin_coords, self.da_sub[self.init_row])
         self.current_cutoff = (self.ax.get_ylim()[1]-self.ax.get_ylim()[0])/2 + self.ax.get_ylim()[0]
         self.cutoff_line = self.ax.axhline(self.current_cutoff, color='r')
+        if self.is_symmetric:
+            self.cutoff_line_mirror = self.ax.axhline(-1*self.current_cutoff, color='r')
 
     def update(self, ix=None, cutoff=None, region=None, update_canvas=True):
         if region is not None:
@@ -427,6 +431,9 @@ class DataLinePlot(BasePlotter1D):
         if cutoff is not None and cutoff != self.current_cutoff:
             self.current_cutoff = cutoff
             self.cutoff_line.set_ydata(self.current_cutoff)
+            if self.is_symmetric:
+                self.cutoff_line_mirror.set_ydata(-1*self.current_cutoff)
+
             if update_canvas:
                 self.fig.canvas.draw()
 
@@ -469,57 +476,64 @@ class TADtoolPlot(object):
         if algorithm == 'insulation':
             self.tad_algorithm = insulation_index
             self.tad_calling_algorithm = call_tads_insulation_index
+            self.is_symmetric = False
         elif algorithm == 'directionality':
             self.tad_algorithm = directionality_index
             self.tad_calling_algorithm = call_tads_directionality_index
+            self.is_symmetric = True
 
     def vmax_slider_update(self, val):
         self.hic_plot.set_clim(self.min_value, val)
 
     def data_slider_update(self, val):
-        self.data_plot.set_clim(self.min_value_data, val)
+        if self.is_symmetric:
+            self.data_plot.set_clim(-1*val, val)
+        else:
+            self.data_plot.set_clim(self.min_value_data, val)
 
     def on_click_save_tads(self, event):
         Tkinter.Tk().withdraw()  # Close the root window
         save_path = tkFileDialog.asksaveasfilename()
-        with open(save_path, 'w') as o:
-            for region in self.tad_regions:
-                o.write("%s\t%d\t%d\n" % (region.chromosome, region.start, region.end))
+        if save_path is not None:
+            with open(save_path, 'w') as o:
+                for region in self.tad_regions:
+                    o.write("%s\t%d\t%d\n" % (region.chromosome, region.start, region.end))
 
     def on_click_save_vector(self, event):
         Tkinter.Tk().withdraw()  # Close the root window
         save_path = tkFileDialog.asksaveasfilename()
-        da_sub = self.da[self.current_da_ix]
-        with open(save_path, 'w') as o:
-            for i, region in enumerate(self.regions):
-                o.write("%s\t%d\t%d\t%e\n" % (region.chromosome, region.start, region.end, da_sub[i]))
+        if save_path is not None:
+            da_sub = self.da[self.current_da_ix]
+            with open(save_path, 'w') as o:
+                for i, region in enumerate(self.regions):
+                    o.write("%s\t%d\t%d\t%e\n" % (region.chromosome, region.start, region.end, da_sub[i]))
 
     def on_click_save_matrix(self, event):
         Tkinter.Tk().withdraw()  # Close the root window
         save_path = tkFileDialog.asksaveasfilename()
-
-        with open(save_path, 'w') as o:
-            # write regions
-            for i, region in enumerate(self.regions):
-                o.write("%s:%d-%d" % (region.chromosome, region.start, region.end))
-                if i < len(self.regions)-1:
-                    o.write("\t")
-                else:
-                    o.write("\n")
-
-            # write matrix
-            n_rows = self.da.shape[0]
-            n_cols = self.da.shape[1]
-            for i in xrange(n_rows):
-                window_size = self.ws[i]
-                o.write("%d\t" % window_size)
-
-                for j in xrange(n_cols):
-                    o.write("%e" % self.da[i, j])
-                    if j < n_cols-1:
+        if save_path is not None:
+            with open(save_path, 'w') as o:
+                # write regions
+                for i, region in enumerate(self.regions):
+                    o.write("%s:%d-%d" % (region.chromosome, region.start, region.end))
+                    if i < len(self.regions)-1:
                         o.write("\t")
                     else:
                         o.write("\n")
+
+                # write matrix
+                n_rows = self.da.shape[0]
+                n_cols = self.da.shape[1]
+                for i in xrange(n_rows):
+                    window_size = self.ws[i]
+                    o.write("%d\t" % window_size)
+
+                    for j in xrange(n_cols):
+                        o.write("%e" % self.da[i, j])
+                        if j < n_cols-1:
+                            o.write("\t")
+                        else:
+                            o.write("\n")
 
     def plot(self, region=None):
         # set up plotting grid
@@ -571,7 +585,7 @@ class TADtoolPlot(object):
         # LINE PLOT
         da_ix = int(self.da.shape[0]/2)
         self.current_da_ix = da_ix
-        self.line_plot = DataLinePlot(self.da, regions=self.regions, init_row=da_ix)
+        self.line_plot = DataLinePlot(self.da, regions=self.regions, init_row=da_ix, is_symmetric=self.is_symmetric)
         self.line_plot.plot(region, ax=line_ax)
         self.line_ax = line_ax
 
@@ -589,14 +603,20 @@ class TADtoolPlot(object):
         self.tad_plot = TADPlot(self.tad_regions)
         self.tad_plot.plot(region=region, ax=tad_ax)
 
-        # DATA ARRAY SLIDER
-        self.sdata = Slider(data_vmax_slider_ax, 'vmax', self.min_value_data, max_value_data,
-                            valinit=init_value_data, color='grey')
-        self.sdata.on_changed(self.data_slider_update)
-
         # DATA ARRAY
         self.data_plot = DataArrayPlot(self.da, self.ws, self.regions, vmax=init_value_data)
         self.data_plot.plot(region, ax=data_ax, cax=da_cax)
+
+        # DATA ARRAY SLIDER
+        if self.is_symmetric:
+            self.sdata = Slider(data_vmax_slider_ax, 'vmax', 0.0, max_value_data,
+                                valinit=init_value_data, color='grey')
+        else:
+            self.sdata = Slider(data_vmax_slider_ax, 'vmax', self.min_value_data, max_value_data,
+                                valinit=init_value_data, color='grey')
+
+        self.sdata.on_changed(self.data_slider_update)
+        self.data_slider_update(init_value_data)
 
         # clean up
         hic_ax.xaxis.set_visible(False)
@@ -619,7 +639,10 @@ class TADtoolPlot(object):
                 self.tad_cutoff_text.set_text("%.5f" % self.line_plot.current_cutoff)
                 self.window_size_text.set_text(str(self.current_window_size))
             elif event.inaxes == self.line_ax:
-                self.line_plot.update(cutoff=event.ydata, update_canvas=False)
+                if self.is_symmetric:
+                    self.line_plot.update(cutoff=event.ydata, update_canvas=False)
+                else:
+                    self.line_plot.update(cutoff=abs(event.ydata), update_canvas=False)
                 self.tad_cutoff_text.set_text("%.5f" % self.line_plot.current_cutoff)
 
             # update TADs
