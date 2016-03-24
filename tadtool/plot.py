@@ -374,7 +374,7 @@ class TADPlot(BasePlotter1D):
     def update(self, regions):
         self.regions = regions
         self.ax.cla()
-        self._plot(region=self.current_region)
+        self.plot(region=self.current_region, ax=self.ax)
 
 
 class DataLinePlot(BasePlotter1D):
@@ -629,6 +629,7 @@ class TADtoolPlot(object):
         return self.fig, (hic_vmax_slider_ax, hic_ax, line_ax, data_ax, hp_cax, da_cax)
 
     def on_click(self, event):
+        pass
         if event.inaxes == self.data_ax or event.inaxes == self.line_ax:
             if event.inaxes == self.data_ax:
                 ws_ix = bisect_left(self.ws, event.ydata)
