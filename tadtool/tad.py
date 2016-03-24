@@ -455,7 +455,10 @@ def insulation_index(hic_matrix, regions=None, window_size=2000000, relative=Fal
 
 
 def data_array(hic_matrix, regions, tad_method=directionality_index,
-               window_sizes=list(xrange(20000, 1000000, 20000)), **kwargs):
+               window_sizes=None, **kwargs):
+    if window_sizes is None:
+        window_sizes = range(10000, 2000000, 10000)
+
     if regions is None:
         for i in xrange(hic_matrix.shape[0]):
             regions.append(GenomicRegion(chromosome='', start=i, end=i))
