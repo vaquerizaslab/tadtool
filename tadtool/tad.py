@@ -380,8 +380,27 @@ def impute_missing_bins(hic_matrix, regions=None, per_chromosome=True, stat=np.m
     return imputed
 
 
+def _apply_sliding_func(a, window, func=np.ma.mean):
+    """
+    Apply function on a sliding window over an array, ignoring Numpy NaN values.
+
+    :param a: Numpy array on which function is applied
+    :param window: The sliding window is i - window:i + window + 1
+                   so total window is twice this parameter.
+    :param func: Function to apply
+    """
+    out = np.empty(a.shape)
+    for i in range(len(a)):
+        window_start = max(0, i - window)
+        window_end = min(len(a), i + window + 1)
+        cur_window = a[window_start:window_end]
+        out[i] = func(cur_window[~np.isnan(cur_window)])
+    return out
+
+
 def insulation_index(hic_matrix, regions=None, window_size=2000000, relative=False, mask_thresh=.5,
-                     aggr_func=np.nanmean, impute_missing=False):
+                     aggr_func=np.nanmean, impute_missing=False, normalize=False,
+                     normalization_window=5000000, gradient=False):
     if regions is None:
         for i in xrange(hic_matrix.shape[0]):
             regions.append(GenomicRegion(chromosome='', start=i, end=i))
@@ -450,7 +469,10 @@ def insulation_index(hic_matrix, regions=None, window_size=2000000, relative=Fal
                 ins_matrix[i] = (aggr_func(hic_matrix[ins_slice].data) /
                                  aggr_func(np.ma.dstack((hic_matrix[up_rel_slice].data,
                                                          hic_matrix[down_rel_slice].data))))
-
+    if normalize:
+        ins_matrix = np.ma.log2(ins_matrix/_apply_sliding_func(ins_matrix, normalization_window, func=np.nanmean))
+    if gradient:
+        ins_matrix = np.gradient(ins_matrix)
     return ins_matrix
 
 
@@ -486,35 +508,66 @@ def data_array(hic_matrix, regions, tad_method=directionality_index,
     return np.array(da), ws
 
 
+def _border_type(i, values):
+    """
+    Returns border type:
+
+    :param i: index of potential border
+    :param values: insulation index values
+    :return: if border: 1 or -1, else 0. 1 if derivative at border is >0, -1 otherwise
+    """
+
+    if i == 0:
+        return 1
+    if i == len(values)-1:
+        return -1
+
+    if values[i-1] <= 0 <= values[i+1]:
+        return 1
+    if values[i+1] <= 0 <= values[i-1]:
+        return -1
+    return 0
+
+
+def call_tad_borders(ii_results, cutoff=0):
+    tad_borders = []
+    g = np.gradient(ii_results)
+    for i in xrange(len(ii_results)):
+        border_type = _border_type(i, g)
+        if border_type == 1 and ii_results[i] <= cutoff:
+            tad_borders.append(i)
+    return tad_borders
+
+
 def call_tads_insulation_index(ii_results, cutoff, regions=None):
     if regions is None:
+        regions = []
         for i in xrange(len(ii_results)):
             regions.append(GenomicRegion(chromosome='', start=i, end=i))
 
     if len(regions) != len(ii_results):
         raise ValueError("Insulation index results and regions must be the same size!")
 
+    borders = call_tad_borders(ii_results, cutoff=cutoff)
+
     tad_regions = []
-    current_tad_start = None
-    current_tad_chromosome = None
-    for i, value in enumerate(ii_results):
-        current_region = regions[i]
-        if current_tad_chromosome is not None and current_region.chromosome != current_tad_chromosome:
-            tad_regions.append(GenomicRegion(chromosome=current_tad_chromosome, start=current_tad_start,
-                                             end=regions[i-1].end))
-            current_tad_chromosome = None
-            current_tad_start = None
+    previous = None
+    for border in borders:
+        if previous is not None:
+            found_max = False
+            for j in xrange(previous, border+1):
+                if ii_results[j] >= cutoff:
+                    found_max = True
 
-        if value >= cutoff:
-            if current_tad_start is None:
-                current_tad_start = current_region.start
-                current_tad_chromosome = current_region.chromosome
-        elif current_tad_start is not None:
-                tad_regions.append(GenomicRegion(chromosome=current_tad_chromosome, start=current_tad_start,
-                                                 end=regions[i-1].end))
-                current_tad_chromosome = None
-                current_tad_start = None
+            if found_max:
+                first_region = regions[previous]
+                second_region = regions[border]
+                if first_region.chromosome != second_region.chromosome:
+                    continue
+                tad_regions.append(GenomicRegion(chromosome=first_region.chromosome,
+                                                 start=first_region.start, end=second_region.end))
 
+        previous = border
     return tad_regions
 
 
