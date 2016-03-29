@@ -209,7 +209,10 @@ class HicMatrixFileReader(object):
             self.load(file_name)
 
     def load(self, file_name):
-        self.m = np.loadtxt(file_name)
+        try:
+            self.m = np.load(file_name)
+        except IOError:
+            self.m = np.loadtxt(file_name)
 
     def matrix(self, file_name=None):
         if self.m is None and file_name is not None:
