@@ -1,0 +1,147 @@
+#!/usr/bin/env python
+
+import argparse
+import os.path
+import textwrap
+import sys
+
+import logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
+
+
+class TADtool(object):
+
+    def __init__(self):
+        usage = '''\
+                tadtool <command> [options]
+
+                Commands:
+                    plot                Main interactive TADtool plotting window
+                    tads                Call TADs with pre-defined parameters
+
+                Run tadtool <command> -h for help on a specific command.
+                '''
+        parser = argparse.ArgumentParser(
+            description="Assistant to find cutoffs in TAD calling algorithms.",
+            usage=textwrap.dedent(usage)
+        )
+
+        parser.add_argument('command', help='Subcommand to run')
+
+        # parse_args defaults to [1:] for args, but you need to
+        # exclude the rest of the args too, or validation will fail
+        args = parser.parse_args(sys.argv[1:2])
+        if not hasattr(self, args.command):
+            print 'Unrecognized command'
+            parser.print_help()
+            exit(1)
+        # use dispatch pattern to invoke method with same name
+        getattr(self, args.command)()
+
+    ##########################################################################
+    #
+    #                                   Auto
+    #
+    ##########################################################################
+
+    def plot(self):
+        parser = argparse.ArgumentParser(
+            prog="tadtool " + sys.argv[1],
+            description='Main interactive TADtool plotting window'
+        )
+
+        parser.add_argument(
+            'matrix',
+            help='''Square Hi-C Matrix as tab-delimited or .npy file (created with numpy.save)'''
+        )
+
+        parser.add_argument(
+            'regions',
+            help='''BED3 file (no header) with regions corresponding to the number of rows in the provided matrix.'''
+        )
+
+        parser.add_argument(
+            'plotting_region',
+            help='''
+                Region of the Hi-C matrix to display in plot. Format: <chromosome>:<start>-<end>, e.g.
+                chr12:31000000-33000000
+            '''
+        )
+
+        parser.add_argument(
+            '-w', '--window-sizes', dest='window_sizes',
+            nargs='+',
+            help='''
+                Window sizes in base pairs used for TAD calculation. You can pass
+                (1) a filename with whitespace-delimited window sizes,
+                (2) three integers denoting start, stop, and step size to generate a range of window sizes, or
+                (3) more than three integers to define window sizes directly.
+                If left at default, ranges will be increments of 10000 from 10000 to 1000000, or increments
+                of 20000 from 20000 to 3000000 for the insulation and directionality index, respectively.
+            '''
+        )
+
+        parser.add_argument(
+            '-a', '--algorithm', dest='algorithm',
+            default='insulation',
+            help='''TAD-calling algorithm. Options: insulation, directionality. Default: insulation.'''
+        )
+
+        parser.add_argument(
+            '-m', '--max-distance', dest='max_dist',
+            type=int,
+            default=3000000,
+            help='''Maximum distance in base-pairs away from the diagonal to be shown in Hi-C plot. Default: 3000000'''
+        )
+
+        args = parser.parse_args(sys.argv[2:])
+
+        import tadtool.tad as tad
+
+        logging.info("Loading matrix...")
+        matrix = tad.HicMatrixFileReader().matrix(os.path.expanduser(args.matrix))
+        logging.info("Loading regions...")
+        regions = tad.HicRegionFileReader().regions(os.path.expanduser(args.regions))
+
+        if len(regions) != matrix.shape[0]:
+            raise ValueError("Regions must be the same length as rows in matrix!")
+
+        logging.info("Getting window sizes...")
+        if args.window_sizes is None:
+            if args.algorithm == 'insulation':
+                window_sizes = range(10000, 1000000, 10000)
+            else:
+                window_sizes = range(20000, 3000000, 20000)
+        else:
+            if len(args.window_sizes) == 1:
+                with open(os.path.expanduser(args.window_sizes[0]), 'r') as ws_file:
+                    file_content = ws_file.read()
+                    string_sizes = file_content.split()
+                    window_sizes = [int(string_size) for string_size in string_sizes]
+            elif len(args.window_sizes) == 3:
+                window_sizes = range(int(args.window_sizes[0]), int(args.window_sizes[1]), int(args.window_sizes[2]))
+            elif len(args.window_sizes) > 3:
+                window_sizes = [int(window_size) for window_size in args.window_sizes]
+            else:
+                raise ValueError("Wrong widow size declaration, see help (-h) for details!")
+
+        if args.algorithm == 'insulation':
+            tad_algorithm = tad.insulation_index
+        elif args.algorithm == 'directionality':
+            tad_algorithm = tad.directionality_index
+        else:
+            raise ValueError("Algorithm (-a) can only be directionality or insulation, not %s!" % args.algorithm)
+
+        data, window_sizes = tad.data_array(hic_matrix=matrix, regions=regions,
+                                            tad_method=tad_algorithm, window_sizes=window_sizes)
+
+        import tadtool.plot as tp
+
+        tad_plot = tp.TADtoolPlot(matrix, regions, data=data, window_sizes=window_sizes,
+                                  norm='lin', max_dist=args.max_dist, algorithm=args.algorithm)
+        fig, axes = tad_plot.plot(args.plotting_region)
+        tp.plt.show(block=True)  # necessary so that window won't close immediately
+
+
+if __name__ == '__main__':
+    TADtool()
