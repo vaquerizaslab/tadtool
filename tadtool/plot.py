@@ -293,7 +293,10 @@ class HicPlot(BasePlotter1D, BasePlotterHic):
 
         # set limits and aspect ratio
         #self.ax.set_aspect(aspect="equal")
-        self.ax.set_ylim(0, self.max_dist/2 if self.max_dist else 0.5*(region.end-region.start))
+        ylim_max = 0.5*(region.end-region.start)
+        if self.max_dist is not None and self.max_dist/2 < ylim_max:
+            ylim_max = self.max_dist/2
+        self.ax.set_ylim(0, ylim_max)
         # remove y ticks
         self.ax.set_yticks([])
         # hide background patch
