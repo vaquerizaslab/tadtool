@@ -6,6 +6,7 @@ from matplotlib.ticker import MaxNLocator, Formatter, Locator
 from matplotlib.widgets import Slider, Button
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
+from matplotlib.colors import LinearSegmentedColormap
 from tadtool.tad import GenomicRegion, sub_matrix_regions, sub_data_regions, \
     data_array, insulation_index, sub_vector_regions, sub_regions, \
     call_tads_insulation_index, directionality_index, call_tads_directionality_index
@@ -291,7 +292,7 @@ class HicPlot(BasePlotter1D, BasePlotterHic):
         self.hicmesh = self.ax.pcolormesh(X_, Y_, hm_masked, cmap=self.colormap, norm=self.norm)
 
         # set limits and aspect ratio
-        self.ax.set_aspect(aspect="equal")
+        #self.ax.set_aspect(aspect="equal")
         self.ax.set_ylim(0, self.max_dist/2 if self.max_dist else 0.5*(region.end-region.start))
         # remove y ticks
         self.ax.set_yticks([])
@@ -308,7 +309,8 @@ class HicPlot(BasePlotter1D, BasePlotterHic):
 
 
 class DataArrayPlot(BasePlotter1D):
-    def __init__(self, data, window_sizes=None, regions=None, title='', midpoint=None, colormap='plasma', vmax=None):
+    def __init__(self, data, window_sizes=None, regions=None, title='', midpoint=None,
+                 colormap='coolwarm_r', vmax=None):
         if regions is None:
             regions = []
             for i in xrange(data.shape[1]):
@@ -362,11 +364,14 @@ class TADPlot(BasePlotter1D):
         sr, start_ix, end_ix = sub_regions(self.regions, region)
         trans = self.ax.get_xaxis_transform()
         for r in sr:
+            print(r.start, r.end)
             region_patch = patches.Rectangle(
                 (r.start, .2),
                 width=abs(r.end - r.start), height=.6,
                 transform=trans,
-                color=self.color
+                facecolor=self.color,
+                edgecolor='white',
+                linewidth=2.
             )
             self.ax.add_patch(region_patch)
         self.ax.axis('off')
@@ -405,11 +410,17 @@ class DataLinePlot(BasePlotter1D):
     def _plot(self, region=None, cax=None):
         self._new_region(region)
         bin_coords = [(x.start - 1) for x in self.sr]
-        self.line, = self.ax.plot(bin_coords, self.da_sub[self.init_row])
-        self.current_cutoff = (self.ax.get_ylim()[1]-self.ax.get_ylim()[0])/2 + self.ax.get_ylim()[0]
+        ds = self.da_sub[self.init_row]
+        self.line, = self.ax.plot(bin_coords, ds)
+        if not self.is_symmetric:
+            self.current_cutoff = (self.ax.get_ylim()[1] - self.ax.get_ylim()[0]) / 2 + self.ax.get_ylim()[0]
+        else:
+            self.current_cutoff = self.ax.get_ylim()[1]/ 2
+        self.ax.axhline(0.0, linestyle='dashed', color='grey')
         self.cutoff_line = self.ax.axhline(self.current_cutoff, color='r')
         if self.is_symmetric:
             self.cutoff_line_mirror = self.ax.axhline(-1*self.current_cutoff, color='r')
+        self.ax.set_ylim((np.nanmin(ds), np.nanmax(ds)))
 
     def update(self, ix=None, cutoff=None, region=None, update_canvas=True):
         if region is not None:
@@ -422,14 +433,20 @@ class DataLinePlot(BasePlotter1D):
             self.ax.set_ylim((np.nanmin(ds), np.nanmax(ds)))
 
             if cutoff is None:
-                self.update(cutoff=(self.ax.get_ylim()[1]-self.ax.get_ylim()[0])/2 + self.ax.get_ylim()[0],
-                            update_canvas=False)
+                if not self.is_symmetric:
+                    self.update(cutoff=(self.ax.get_ylim()[1]-self.ax.get_ylim()[0])/2 + self.ax.get_ylim()[0],
+                                update_canvas=False)
+                else:
+                    self.update(cutoff=self.ax.get_ylim()[1] / 2, update_canvas=False)
 
             if update_canvas:
                 self.fig.canvas.draw()
 
         if cutoff is not None and cutoff != self.current_cutoff:
-            self.current_cutoff = cutoff
+            if self.is_symmetric:
+                self.current_cutoff = abs(cutoff)
+            else:
+                self.current_cutoff = cutoff
             self.cutoff_line.set_ydata(self.current_cutoff)
             if self.is_symmetric:
                 self.cutoff_line_mirror.set_ydata(-1*self.current_cutoff)
@@ -439,8 +456,9 @@ class DataLinePlot(BasePlotter1D):
 
 
 class TADtoolPlot(object):
-    def __init__(self, hic_matrix, regions=None, norm='lin', max_dist=3000000,
-                 max_percentile=99.99, algorithm='insulation'):
+    def __init__(self, hic_matrix, regions=None, data=None, window_sizes=None, norm='lin', max_dist=3000000,
+                 max_percentile=99.99, algorithm='insulation', matrix_colormap=None,
+                 data_colormap=None):
         self.hic_matrix = hic_matrix
         if regions is None:
             regions = []
@@ -477,10 +495,27 @@ class TADtoolPlot(object):
             self.tad_algorithm = insulation_index
             self.tad_calling_algorithm = call_tads_insulation_index
             self.is_symmetric = False
+            if matrix_colormap is None:
+                self.matrix_colormap = LinearSegmentedColormap.from_list('myreds', ['white', 'red'])
+            if data_colormap is None:
+                self.data_plot_color = 'plasma'
         elif algorithm == 'directionality':
             self.tad_algorithm = directionality_index
             self.tad_calling_algorithm = call_tads_directionality_index
             self.is_symmetric = True
+            if matrix_colormap is None:
+                self.matrix_colormap = LinearSegmentedColormap.from_list('myreds', ['white', 'red'])
+            if data_colormap is None:
+                self.data_plot_color = LinearSegmentedColormap.from_list('myreds', ['blue', 'white', 'red'])
+
+        if data is None:
+            self.da, self.ws = data_array(hic_matrix=self.hic_matrix, regions=self.regions,
+                                          tad_method=self.tad_algorithm, window_sizes=window_sizes)
+        else:
+            self.da = data
+            if window_sizes is None:
+                raise ValueError("window_sizes parameter cannot be None when providing data!")
+            self.ws = window_sizes
 
     def vmax_slider_update(self, val):
         self.hic_plot.set_clim(self.min_value, val)
@@ -564,7 +599,7 @@ class TADtoolPlot(object):
 
         # add subplot content
         max_value = np.nanpercentile(self.hic_matrix, self.max_percentile)
-        init_value = .7*max_value
+        init_value = .5*max_value
 
         # HI-C VMAX SLIDER
         self.svmax = Slider(hic_vmax_slider_ax, 'vmax', self.min_value, max_value, valinit=init_value, color='grey')
@@ -572,15 +607,13 @@ class TADtoolPlot(object):
 
         # HI-C
         self.hic_plot = HicPlot(self.hic_matrix, self.regions, max_dist=self.max_dist, norm=self.norm,
-                                vmax=init_value, vmin=self.min_value)
+                                vmax=init_value, vmin=self.min_value, colormap=self.matrix_colormap)
         self.hic_plot.plot(region, ax=hic_ax, cax=hp_cax)
 
         # generate data array
-        self.da, self.ws = data_array(hic_matrix=self.hic_matrix, regions=self.regions,
-                                      tad_method=self.tad_algorithm)
         self.min_value_data = np.nanmin(self.da[np.nonzero(self.da)])
         max_value_data = np.nanpercentile(self.da, self.max_percentile)
-        init_value_data = .7*max_value_data
+        init_value_data = .5*max_value_data
 
         # LINE PLOT
         da_ix = int(self.da.shape[0]/2)
@@ -604,7 +637,8 @@ class TADtoolPlot(object):
         self.tad_plot.plot(region=region, ax=tad_ax)
 
         # DATA ARRAY
-        self.data_plot = DataArrayPlot(self.da, self.ws, self.regions, vmax=init_value_data)
+        self.data_plot = DataArrayPlot(self.da, self.ws, self.regions, vmax=init_value_data,
+                                       colormap=self.data_plot_color)
         self.data_plot.plot(region, ax=data_ax, cax=da_cax)
 
         # DATA ARRAY SLIDER
@@ -629,7 +663,6 @@ class TADtoolPlot(object):
         return self.fig, (hic_vmax_slider_ax, hic_ax, line_ax, data_ax, hp_cax, da_cax)
 
     def on_click(self, event):
-        pass
         if event.inaxes == self.data_ax or event.inaxes == self.line_ax:
             if event.inaxes == self.data_ax:
                 ws_ix = bisect_left(self.ws, event.ydata)
@@ -641,7 +674,7 @@ class TADtoolPlot(object):
                 self.window_size_text.set_text(str(self.current_window_size))
             elif event.inaxes == self.line_ax:
                 if self.is_symmetric:
-                    self.line_plot.update(cutoff=event.ydata, update_canvas=False)
+                    self.line_plot.update(cutoff=abs(event.ydata), update_canvas=False)
                 else:
                     self.line_plot.update(cutoff=abs(event.ydata), update_canvas=False)
                 self.tad_cutoff_text.set_text("%.5f" % self.line_plot.current_cutoff)
