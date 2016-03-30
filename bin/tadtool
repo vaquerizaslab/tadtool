@@ -122,9 +122,9 @@ class TADtool(object):
         if args.window_sizes is None:
             import numpy as np
             if args.algorithm == 'insulation':
-                window_sizes = np.logspace(4, 6, 100)
+                window_sizes = [int(i) for i in np.logspace(4, 6, 100)]
             else:
-                window_sizes = np.logspace(4, 6.5, 100)
+                window_sizes = [int(i) for i in np.logspace(4, 6.5, 100)]
         else:
             if len(args.window_sizes) == 1:
                 try:
