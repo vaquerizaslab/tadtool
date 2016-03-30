@@ -378,7 +378,6 @@ class TADPlot(BasePlotter1D):
         sr, start_ix, end_ix = sub_regions(self.regions, region)
         trans = self.ax.get_xaxis_transform()
         for r in sr:
-            print(r.start, r.end)
             region_patch = patches.Rectangle(
                 (r.start, .2),
                 width=abs(r.end - r.start), height=.6,
