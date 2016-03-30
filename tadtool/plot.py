@@ -310,7 +310,7 @@ class HicPlot(BasePlotter1D, BasePlotterHic):
 
 class DataArrayPlot(BasePlotter1D):
     def __init__(self, data, window_sizes=None, regions=None, title='', midpoint=None,
-                 colormap='coolwarm_r', vmax=None):
+                 colormap='coolwarm_r', vmax=None, current_window_size=0):
         if regions is None:
             regions = []
             for i in xrange(data.shape[1]):
@@ -333,6 +333,8 @@ class DataArrayPlot(BasePlotter1D):
         self.midpoint = midpoint
         self.mesh = None
         self.vmax = vmax
+        self.window_size_line = None
+        self.current_window_size = current_window_size
 
     def _plot(self, region=None, cax=None):
         da_sub, regions_sub = sub_data_regions(self.da, self.regions, region)
@@ -343,12 +345,16 @@ class DataArrayPlot(BasePlotter1D):
 
         self.mesh = self.ax.pcolormesh(x, y, da_sub_masked, cmap=self.colormap, vmax=self.vmax)
         self.colorbar = plt.colorbar(self.mesh, cax=cax, orientation="vertical")
+        self.window_size_line = self.ax.axhline(self.current_window_size, color='blue')
 
     def set_clim(self, vmin, vmax):
         self.mesh.set_clim(vmin=vmin, vmax=vmax)
         if self.colorbar is not None:
             self.colorbar.set_clim(vmin=vmin, vmax=vmax)
             self.colorbar.draw_all()
+
+    def update(self, window_size):
+        self.window_size_line.set_ydata(window_size)
 
 
 class TADPlot(BasePlotter1D):
@@ -638,7 +644,7 @@ class TADtoolPlot(object):
 
         # DATA ARRAY
         self.data_plot = DataArrayPlot(self.da, self.ws, self.regions, vmax=init_value_data,
-                                       colormap=self.data_plot_color)
+                                       colormap=self.data_plot_color, current_window_size=self.ws[da_ix])
         self.data_plot.plot(region, ax=data_ax, cax=da_cax)
 
         # DATA ARRAY SLIDER
@@ -669,6 +675,7 @@ class TADtoolPlot(object):
                 self.current_window_size = self.ws[ws_ix]
                 self.current_da_ix = ws_ix
 
+                self.data_plot.update(window_size=self.ws[ws_ix])
                 self.line_plot.update(ix=ws_ix, update_canvas=False)
                 self.tad_cutoff_text.set_text("%.5f" % self.line_plot.current_cutoff)
                 self.window_size_text.set_text(str(self.current_window_size))
