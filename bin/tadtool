@@ -76,8 +76,8 @@ class TADtool(object):
                 (1) a filename with whitespace-delimited window sizes,
                 (2) three integers denoting start, stop, and step size to generate a range of window sizes, or
                 (3) more than three integers to define window sizes directly.
-                If left at default, ranges will be increments of 10000 from 10000 to 1000000, or increments
-                of 20000 from 20000 to 3000000 for the insulation and directionality index, respectively.
+                If left at default, window sizes will be logarithmically spaced between 10**4 and 10**6, or 10**6.5
+                for the insulation and directionality index, respectively.
             '''
         )
 
@@ -108,10 +108,11 @@ class TADtool(object):
 
         logging.info("Getting window sizes...")
         if args.window_sizes is None:
+            import numpy as np
             if args.algorithm == 'insulation':
-                window_sizes = range(10000, 1000000, 10000)
+                window_sizes = np.logspace(4, 6, 100)
             else:
-                window_sizes = range(20000, 3000000, 20000)
+                window_sizes = np.logspace(4, 6.5, 100)
         else:
             if len(args.window_sizes) == 1:
                 with open(os.path.expanduser(args.window_sizes[0]), 'r') as ws_file:
