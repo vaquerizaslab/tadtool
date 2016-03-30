@@ -310,7 +310,7 @@ class HicPlot(BasePlotter1D, BasePlotterHic):
 
 class DataArrayPlot(BasePlotter1D):
     def __init__(self, data, window_sizes=None, regions=None, title='', midpoint=None,
-                 colormap='coolwarm_r', vmax=None, current_window_size=0):
+                 colormap='coolwarm_r', vmax=None, current_window_size=0, log_y=True):
         if regions is None:
             regions = []
             for i in xrange(data.shape[1]):
@@ -335,6 +335,7 @@ class DataArrayPlot(BasePlotter1D):
         self.vmax = vmax
         self.window_size_line = None
         self.current_window_size = current_window_size
+        self.log_y = log_y
 
     def _plot(self, region=None, cax=None):
         da_sub, regions_sub = sub_data_regions(self.da, self.regions, region)
@@ -346,6 +347,10 @@ class DataArrayPlot(BasePlotter1D):
         self.mesh = self.ax.pcolormesh(x, y, da_sub_masked, cmap=self.colormap, vmax=self.vmax)
         self.colorbar = plt.colorbar(self.mesh, cax=cax, orientation="vertical")
         self.window_size_line = self.ax.axhline(self.current_window_size, color='blue')
+
+        if self.log_y:
+            self.ax.set_yscale("log")
+        self.ax.set_ylim((np.nanmin(self.window_sizes), np.nanmax(self.window_sizes)))
 
     def set_clim(self, vmin, vmax):
         self.mesh.set_clim(vmin=vmin, vmax=vmax)
@@ -464,7 +469,7 @@ class DataLinePlot(BasePlotter1D):
 class TADtoolPlot(object):
     def __init__(self, hic_matrix, regions=None, data=None, window_sizes=None, norm='lin', max_dist=3000000,
                  max_percentile=99.99, algorithm='insulation', matrix_colormap=None,
-                 data_colormap=None):
+                 data_colormap=None, log_data=True):
         self.hic_matrix = hic_matrix
         if regions is None:
             regions = []
@@ -496,6 +501,8 @@ class TADtoolPlot(object):
         self.button_save_tads = None
         self.button_save_vector = None
         self.button_save_matrix = None
+
+        self.log_data = log_data
 
         if algorithm == 'insulation':
             self.tad_algorithm = insulation_index
@@ -605,7 +612,7 @@ class TADtoolPlot(object):
 
         # add subplot content
         max_value = np.nanpercentile(self.hic_matrix, self.max_percentile)
-        init_value = .5*max_value
+        init_value = .3*max_value
 
         # HI-C VMAX SLIDER
         self.svmax = Slider(hic_vmax_slider_ax, 'vmax', self.min_value, max_value, valinit=init_value, color='grey')
@@ -619,7 +626,7 @@ class TADtoolPlot(object):
         # generate data array
         self.min_value_data = np.nanmin(self.da[np.nonzero(self.da)])
         max_value_data = np.nanpercentile(self.da, self.max_percentile)
-        init_value_data = .5*max_value_data
+        init_value_data = .3*max_value_data
 
         # LINE PLOT
         da_ix = int(self.da.shape[0]/2)
@@ -644,7 +651,8 @@ class TADtoolPlot(object):
 
         # DATA ARRAY
         self.data_plot = DataArrayPlot(self.da, self.ws, self.regions, vmax=init_value_data,
-                                       colormap=self.data_plot_color, current_window_size=self.ws[da_ix])
+                                       colormap=self.data_plot_color, current_window_size=self.ws[da_ix],
+                                       log_y=self.log_data)
         self.data_plot.plot(region, ax=data_ax, cax=da_cax)
 
         # DATA ARRAY SLIDER
