@@ -145,10 +145,19 @@ class GenomicRegion(object):
         return not self._equals(other)
 
     def copy(self):
+        """
+        Make a copy of this GenomicRegion object.
+        """
         return GenomicRegion(chromosome=self.chromosome, start=self.start, end=self.end)
 
 
 def sub_regions(regions, region):
+    """
+    Get regions from a list the overlap with another region.
+
+    :param regions: List of :class:`~GenomicRegion`
+    :param region: :class:`~GenomicRegion` used for overlap calculation
+    """
     if isinstance(region, basestring):
         region = GenomicRegion.from_string(region)
 
@@ -169,6 +178,13 @@ def sub_regions(regions, region):
 
 
 def sub_matrix_regions(hic_matrix, regions, region):
+    """
+    Get a square sub Hi-C matrix that overlaps a given region.
+
+    :param hic_matrix: A square numpy array
+    :param regions: List of :class:`~GenomicRegion`
+    :param region: :class:`~GenomicRegion` used for overlap calculation
+    """
     sr, start_ix, end_ix = sub_regions(regions, region)
 
     if start_ix is None:
@@ -178,6 +194,13 @@ def sub_matrix_regions(hic_matrix, regions, region):
 
 
 def sub_data_regions(data, regions, region):
+    """
+    Get a sub data matrix that overlaps a given region.
+
+    :param data: a numpy array
+    :param regions: List of :class:`~GenomicRegion`
+    :param region: :class:`~GenomicRegion` used for overlap calculation
+    """
     sr, start_ix, end_ix = sub_regions(regions, region)
 
     if start_ix is None:
@@ -190,6 +213,13 @@ def sub_data_regions(data, regions, region):
 
 
 def sub_vector_regions(data, regions, region):
+    """
+    Get a sub-vector that overlaps a given region
+
+    :param data: a numpy vector
+    :param regions: List of :class:`~GenomicRegion`
+    :param region: :class:`~GenomicRegion` used for overlap calculation
+    """
     sr, start_ix, end_ix = sub_regions(regions, region)
 
     if start_ix is None:
@@ -202,6 +232,9 @@ def sub_vector_regions(data, regions, region):
 
 
 class HicMatrixFileReader(object):
+    """
+    Class to read a Hi-C matrix from file.
+    """
     def __init__(self, file_name=None):
         self.m = None
 
@@ -209,12 +242,22 @@ class HicMatrixFileReader(object):
             self.load(file_name)
 
     def load(self, file_name):
+        """
+        Load a Hi-C matrix into this object.
+
+        :param file_name: Path to a .npy or tab-delimited .txt file
+        """
         try:
             self.m = np.load(file_name)
         except IOError:
             self.m = np.loadtxt(file_name)
 
     def matrix(self, file_name=None):
+        """
+        Get matrix loaded by this object (or load matrix from file, if provided)
+
+        :param file_name: Path to a .npy or tab-delimited .txt file
+        """
         if self.m is None and file_name is not None:
             self.load(file_name)
         else:
@@ -223,6 +266,9 @@ class HicMatrixFileReader(object):
 
 
 class HicRegionFileReader(object):
+    """
+    Class to read a BED3 file with genomic regions
+    """
     def __init__(self, file_name=None, _separator="\t"):
         self.sep = _separator
         self.r = None
@@ -230,6 +276,11 @@ class HicRegionFileReader(object):
             self.load(file_name)
 
     def load(self, file_name):
+        """
+        Load genomic regions from file into a list of :class:`~GenomicRegion` objects
+
+        :param file_name: Path to a BED3 file
+        """
         regions = []
         with open(file_name, 'r') as f:
             for line in f:
@@ -243,6 +294,11 @@ class HicRegionFileReader(object):
         self.r = regions
 
     def regions(self, file_name=None):
+        """
+        Get list of regions loaded into this object or load from file, if filename provided
+
+        :param file_name: Path to a BED3 file
+        """
         if self.r is None and file_name is not None:
             self.load(file_name)
         else:
@@ -251,27 +307,37 @@ class HicRegionFileReader(object):
 
 
 def _get_boundary_distances(regions):
-        n_bins = len(regions)
-        # find distances to chromosome boundaries in bins
-        boundary_dist = np.zeros(n_bins, dtype=int)
-        last_chromosome = None
-        last_chromosome_index = 0
-        for i, region in enumerate(regions):
-            chromosome = region.chromosome
-            if last_chromosome is not None and chromosome != last_chromosome:
-                chromosome_length = i-last_chromosome_index
-                for j in xrange(chromosome_length):
-                    boundary_dist[last_chromosome_index+j] = min(j, i-last_chromosome_index-1-j)
-                last_chromosome_index = i
-            last_chromosome = chromosome
-        chromosome_length = n_bins-last_chromosome_index
-        for j in xrange(chromosome_length):
-            boundary_dist[last_chromosome_index+j] = min(j, n_bins-last_chromosome_index-1-j)
+    """
+    Return the distances of each region to the boundaries of its chromosome.
+    """
+    n_bins = len(regions)
+    # find distances to chromosome boundaries in bins
+    boundary_dist = np.zeros(n_bins, dtype=int)
+    last_chromosome = None
+    last_chromosome_index = 0
+    for i, region in enumerate(regions):
+        chromosome = region.chromosome
+        if last_chromosome is not None and chromosome != last_chromosome:
+            chromosome_length = i-last_chromosome_index
+            for j in xrange(chromosome_length):
+                boundary_dist[last_chromosome_index+j] = min(j, i-last_chromosome_index-1-j)
+            last_chromosome_index = i
+        last_chromosome = chromosome
+    chromosome_length = n_bins-last_chromosome_index
+    for j in xrange(chromosome_length):
+        boundary_dist[last_chromosome_index+j] = min(j, n_bins-last_chromosome_index-1-j)
 
-        return boundary_dist
+    return boundary_dist
 
 
 def directionality_index(hic, regions=None, window_size=2000000):
+    """
+    Calculate the directionality index as in Dixon et al. (2012).
+
+    :param hic: A Hi-C matrix in the form of a square numpy array
+    :param regions: A list of :class:`~GenomicRegion`s - if omitted, will create a dummy list
+    :param window_size: A window size in base pairs
+    """
     if regions is None:
         for i in xrange(hic.shape[0]):
             regions.append(GenomicRegion(chromosome='', start=i, end=i))
@@ -329,7 +395,11 @@ def masked_matrix(matrix, all_zero=False):
 
 
 def kth_diag_indices(n, k):
-    # http://stackoverflow.com/questions/10925671/numpy-k-th-diagonal-indices
+    """
+    Return indices of bins k steps away from the diagonal.
+    (from http://stackoverflow.com/questions/10925671/numpy-k-th-diagonal-indices)
+    """
+
     rows, cols = np.diag_indices(n)
     if k < 0:
         return rows[:k], cols[-k:]
@@ -340,6 +410,17 @@ def kth_diag_indices(n, k):
 
 
 def impute_missing_bins(hic_matrix, regions=None, per_chromosome=True, stat=np.ma.mean):
+    """
+    Impute missing contacts in a Hi-C matrix.
+
+    For inter-chromosomal data uses the mean of all inter-chromosomal contacts,
+    for intra-chromosomal data uses the mean of intra-chromosomal counts at the corresponding diagonal.
+
+    :param hic_matrix: A square numpy array
+    :param regions: A list of :class:`~GenomicRegion`s - if omitted, will create a dummy list
+    :param per_chromosome: Do imputation on a per-chromosome basis (recommended)
+    :param stat: The aggregation statistic to be used for imputation, defaults to the mean.
+    """
     if regions is None:
         for i in xrange(hic_matrix.shape[0]):
             regions.append(GenomicRegion(chromosome='', start=i, end=i))
@@ -390,7 +471,7 @@ def _apply_sliding_func(a, window, func=np.ma.mean):
     :param a: Numpy array on which function is applied
     :param window: The sliding window is i - window:i + window + 1
                    so total window is twice this parameter.
-    :param func: Function to apply
+    :param func: Aggregation function to apply
     """
     out = np.empty(a.shape)
     for i in range(len(a)):
@@ -401,9 +482,24 @@ def _apply_sliding_func(a, window, func=np.ma.mean):
     return out
 
 
-def insulation_index(hic_matrix, regions=None, window_size=2000000, relative=False, mask_thresh=.5,
+def insulation_index(hic_matrix, regions=None, window_size=500000, relative=False, mask_thresh=.5,
                      aggr_func=np.nanmean, impute_missing=False, normalize=False,
                      normalization_window=5000000, gradient=False):
+    """
+    Calculate the insulation index as in Crane et al. (2015)
+
+    :param hic_matrix: A square numpy array
+    :param regions: A list of :class:`~GenomicRegion`s - if omitted, will create a dummy list
+    :param window_size: A window size in base pairs
+    :param relative: Calculate insulation index relative to upstream and downstream contact strength
+    :param mask_thresh: Set the threshold for masked value threshold
+    :param aggr_func: Aggregation function used for index calculation, defaults to the mean
+    :param impute_missing: Impute missing values, defaults to False
+    :param normalize: Normalize index at each region to the mean number of contacts across a larger region
+                      and log2-transform data
+    :param normalization_window: Window to normalize contacts to (see normalize)
+    :param gradient: Return the first derivative of the insulation index
+    """
     if regions is None:
         for i in xrange(hic_matrix.shape[0]):
             regions.append(GenomicRegion(chromosome='', start=i, end=i))
@@ -479,10 +575,19 @@ def insulation_index(hic_matrix, regions=None, window_size=2000000, relative=Fal
     return ins_matrix
 
 
-def data_array(hic_matrix, regions, tad_method=directionality_index,
+def data_array(hic_matrix, regions, tad_method=insulation_index,
                window_sizes=None, **kwargs):
+    """
+    Calculate an index for a range of window sizes.
+
+    :param hic_matrix: A square numpy array
+    :param regions: A list of :class:`~GenomicRegion`s - if omitted, will create a dummy list
+    :param tad_method: The method used for index calculation
+    :param window_sizes: A list of window sizes in base pairs
+    :param kwargs: Parameters passed to tad_method
+    """
     if window_sizes is None:
-        window_sizes = range(10000, 2000000, 10000)
+        window_sizes = [int(i) for i in np.logspace(4, 6, 100)]
 
     if regions is None:
         for i in xrange(hic_matrix.shape[0]):
@@ -533,6 +638,12 @@ def _border_type(i, values):
 
 
 def call_tad_borders(ii_results, cutoff=0):
+    """
+    Calls TAD borders using the first derivative of the insulation index.
+
+    :param ii_results: (raw) insulation index results, numpy vector
+    :param cutoff: raw insulation index threshold for "true" TAD boundaries
+    """
     tad_borders = []
     g = np.gradient(ii_results)
     for i in xrange(len(ii_results)):
@@ -543,6 +654,13 @@ def call_tad_borders(ii_results, cutoff=0):
 
 
 def call_tads_insulation_index(ii_results, cutoff, regions=None):
+    """
+    Call TADs from insulation index vector.
+
+    :param ii_results: (raw) insulation index results, numpy vector
+    :param cutoff: raw insulation index threshold for "true" TADs
+    :param regions: A list of :class:`~GenomicRegion`s - if omitted, will create a dummy list
+    """
     if regions is None:
         regions = []
         for i in xrange(len(ii_results)):
@@ -575,6 +693,13 @@ def call_tads_insulation_index(ii_results, cutoff, regions=None):
 
 
 def call_tads_directionality_index(di_results, cutoff, regions=None):
+    """
+    Call TADs from directionality index vector.
+
+    :param di_results: (raw) directionality index results, numpy vector
+    :param cutoff: raw directionality index threshold for "true" biases
+    :param regions: A list of :class:`~GenomicRegion`s - if omitted, will create a dummy list
+    """
     if regions is None:
         for i in xrange(len(di_results)):
             regions.append(GenomicRegion(chromosome='', start=i, end=i))
