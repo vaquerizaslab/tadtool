@@ -349,7 +349,7 @@ class DataArrayPlot(BasePlotter1D):
 
         self.mesh = self.ax.pcolormesh(x, y, da_sub_masked, cmap=self.colormap, vmax=self.vmax)
         self.colorbar = plt.colorbar(self.mesh, cax=cax, orientation="vertical")
-        self.window_size_line = self.ax.axhline(self.current_window_size, color='blue')
+        self.window_size_line = self.ax.axhline(self.current_window_size, color='red')
 
         if self.log_y:
             self.ax.set_yscale("log")
