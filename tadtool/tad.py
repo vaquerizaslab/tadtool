@@ -473,18 +473,18 @@ def _apply_sliding_func(a, window, func=np.ma.mean):
                    so total window is twice this parameter.
     :param func: Aggregation function to apply
     """
-    out = np.empty(a.shape)
+    out = np.empty(len(a))
     for i in range(len(a)):
         window_start = max(0, i - window)
         window_end = min(len(a), i + window + 1)
-        cur_window = a[window_start:window_end]
+        cur_window = np.array(a[window_start:window_end])
         out[i] = func(cur_window[~np.isnan(cur_window)])
     return out
 
 
 def insulation_index(hic_matrix, regions=None, window_size=500000, relative=False, mask_thresh=.5,
                      aggr_func=np.nanmean, impute_missing=False, normalize=False,
-                     normalization_window=5000000, gradient=False):
+                     normalization_window=None, gradient=False):
     """
     Calculate the insulation index as in Crane et al. (2015)
 
@@ -497,7 +497,8 @@ def insulation_index(hic_matrix, regions=None, window_size=500000, relative=Fals
     :param impute_missing: Impute missing values, defaults to False
     :param normalize: Normalize index at each region to the mean number of contacts across a larger region
                       and log2-transform data
-    :param normalization_window: Window to normalize contacts to (see normalize)
+    :param normalization_window: Window (in number of regions) to normalize contacts to (see normalize).
+                                 If None, the whole chromosome will be used for normalization.
     :param gradient: Return the first derivative of the insulation index
     """
     if regions is None:
@@ -523,19 +524,25 @@ def insulation_index(hic_matrix, regions=None, window_size=500000, relative=Fals
     if hasattr(hic_matrix, 'mask'):
         is_masked = True
 
-    n = len(regions)
-    ins_matrix = np.empty(n)
     skipped = 0
+    last_chromosome = None
+    ins_by_chromosome = []
     for i, r in enumerate(regions):
+        if r.chromosome != last_chromosome:
+            last_chromosome = r.chromosome
+            ins_by_chromosome.append(list())
+
         # too close to chromosome edge
         if (i - chr_bins[r.chromosome][0] < d or
                 chr_bins[r.chromosome][1] - i <= d + 1):
-            ins_matrix[i] = np.nan
+            ins_by_chromosome[-1].append(np.nan)
+            # ins_matrix[i] = np.nan
             continue
 
         # masked region
         if is_masked and hic_matrix.mask[i, i]:
-            ins_matrix[i] = np.nan
+            ins_by_chromosome[-1].append(np.nan)
+            # ins_matrix[i] = np.nan
             continue
 
         up_rel_slice = (slice(i - d, i), slice(i - d, i))
@@ -549,30 +556,51 @@ def insulation_index(hic_matrix, regions=None, window_size=500000, relative=Fals
             # if more than half of the entries in this quadrant are masked (unmappable)
             # exclude it from the analysis
             skipped += 1
-            ins_matrix[i] = np.nan
+            ins_by_chromosome[-1].append(np.nan)
+            # ins_matrix[i] = np.nan
             continue
 
         if not relative:
             if impute_missing and is_masked:
                 s = aggr_func(hic_matrix[ins_slice].data)
-                ins_matrix[i] = s
+                ins_by_chromosome[-1].append(s)
+                # ins_matrix[i] = s
             else:
                 s = aggr_func(hic_matrix[ins_slice])
-                ins_matrix[i] = s
+                ins_by_chromosome[-1].append(s)
+                # ins_matrix[i] = s
         else:
             if not impute_missing and not is_masked:
-                ins_matrix[i] = (aggr_func(hic_matrix[ins_slice]) /
-                                 aggr_func(np.ma.dstack((hic_matrix[up_rel_slice],
-                                                         hic_matrix[down_rel_slice]))))
+                s = (aggr_func(hic_matrix[ins_slice]) /
+                     aggr_func(np.ma.dstack((hic_matrix[up_rel_slice],
+                                             hic_matrix[down_rel_slice]))))
+                # ins_matrix[i] = s
+                ins_by_chromosome[-1].append(s)
             else:
-                ins_matrix[i] = (aggr_func(hic_matrix[ins_slice].data) /
-                                 aggr_func(np.ma.dstack((hic_matrix[up_rel_slice].data,
-                                                         hic_matrix[down_rel_slice].data))))
+                s = (aggr_func(hic_matrix[ins_slice].data) /
+                     aggr_func(np.ma.dstack((hic_matrix[up_rel_slice].data,
+                                             hic_matrix[down_rel_slice].data))))
+                # ins_matrix[i] = s
+                ins_by_chromosome[-1].append(s)
+
     if normalize:
-        ins_matrix = np.ma.log2(ins_matrix/_apply_sliding_func(ins_matrix, normalization_window, func=np.nanmean))
+        for i in xrange(len(ins_by_chromosome)):
+            if normalization_window is not None:
+                ins_by_chromosome[i] = np.ma.log2(ins_by_chromosome[i]/_apply_sliding_func(
+                    ins_by_chromosome[i], normalization_window, func=np.nanmean))
+            else:
+                ins_by_chromosome[i] = np.ma.log2(ins_by_chromosome[i]/np.nanmean(ins_by_chromosome[i]))
     if gradient:
-        ins_matrix = np.gradient(ins_matrix)
+        for i in xrange(len(ins_by_chromosome)):
+            ins_by_chromosome[i] = np.gradient(ins_by_chromosome[i])
+
+    ins_matrix = np.array(ins_by_chromosome).ravel()
     return ins_matrix
+
+
+def normalised_insulation_index(hic_matrix, regions=None, window_size=500000, normalisation_window=None):
+    return insulation_index(hic_matrix, regions=regions, window_size=window_size, normalize=True,
+                            normalization_window=normalisation_window)
 
 
 def data_array(hic_matrix, regions, tad_method=insulation_index,

@@ -85,7 +85,7 @@ class TADtool(object):
         parser.add_argument(
             '-a', '--algorithm', dest='algorithm',
             default='insulation',
-            help='''TAD-calling algorithm. Options: insulation, directionality. Default: insulation.'''
+            help='''TAD-calling algorithm. Options: insulation, ninsulation, directionality. Default: insulation.'''
         )
 
         parser.add_argument(
@@ -93,6 +93,13 @@ class TADtool(object):
             type=int,
             default=3000000,
             help='''Maximum distance in base-pairs away from the diagonal to be shown in Hi-C plot. Default: 3000000'''
+        )
+
+        parser.add_argument(
+            '-n', '--normalisation-window', dest='normalisation_window',
+            type=int,
+            help='''Normalisation window in number of regions. Only affects ninsulation algorithm. If not specified,
+                    window will be the whole chromosome.'''
         )
 
         parser.add_argument(
@@ -106,6 +113,7 @@ class TADtool(object):
         args = parser.parse_args(sys.argv[2:])
 
         import tadtool.tad as tad
+        from functools import partial
 
         logging.info("Loading matrix...")
         matrix = tad.HicMatrixFileReader().matrix(os.path.expanduser(args.matrix))
@@ -121,7 +129,7 @@ class TADtool(object):
         logging.info("Getting window sizes...")
         if args.window_sizes is None:
             import numpy as np
-            if args.algorithm == 'insulation':
+            if args.algorithm == 'insulation' or args.algorithm == 'ninsulation':
                 window_sizes = [int(i) for i in np.logspace(4, 6, 100)]
             else:
                 window_sizes = [int(i) for i in np.logspace(4, 6.5, 100)]
@@ -142,13 +150,19 @@ class TADtool(object):
             else:
                 raise ValueError("Wrong widow size declaration, see help (-h) for details!")
 
+        normalised_insulation_index = partial(tad.normalised_insulation_index,
+                                              normalisation_window=args.normalisation_window)
+
         if args.data is None:
             if args.algorithm == 'insulation':
                 tad_algorithm = tad.insulation_index
+            elif args.algorithm == 'ninsulation':
+                tad_algorithm = normalised_insulation_index
             elif args.algorithm == 'directionality':
                 tad_algorithm = tad.directionality_index
             else:
-                raise ValueError("Algorithm (-a) can only be directionality or insulation, not %s!" % args.algorithm)
+                raise ValueError("Algorithm (-a) can only be directionality, insulation or ninsulation,"
+                                 " not %s!" % args.algorithm)
 
             data, window_sizes = tad.data_array(hic_matrix=matrix, regions=regions,
                                                 tad_method=tad_algorithm, window_sizes=window_sizes)
@@ -206,12 +220,20 @@ class TADtool(object):
         parser.add_argument(
             '-a', '--algorithm', dest='algorithm',
             default='insulation',
-            help='''TAD-calling algorithm. Options: insulation, directionality. Default: insulation.'''
+            help='''TAD-calling algorithm. Options: insulation, ninsulation, directionality. Default: insulation.'''
+        )
+
+        parser.add_argument(
+            '-n', '--normalisation-window', dest='normalisation_window',
+            type=int,
+            help='''Normalisation window in number of regions. Only affects ninsulation algorithm. If not specified,
+                    window will be the whole chromosome.'''
         )
 
         args = parser.parse_args(sys.argv[2:])
 
         import tadtool.tad as tad
+        from functools import partial
 
         logging.info("Loading matrix...")
         matrix = tad.HicMatrixFileReader().matrix(os.path.expanduser(args.matrix))
@@ -221,14 +243,21 @@ class TADtool(object):
         if len(regions) != matrix.shape[0]:
             raise ValueError("Regions must be the same length as rows in matrix!")
 
+        normalised_insulation_index = partial(tad.normalised_insulation_index,
+                                              normalisation_window=args.normalisation_window)
+
         if args.algorithm == 'insulation':
             index_algorithm = tad.insulation_index
+            tad_algorithm = tad.call_tads_insulation_index
+        elif args.algorithm == 'ninsulation':
+            index_algorithm = normalised_insulation_index
             tad_algorithm = tad.call_tads_insulation_index
         elif args.algorithm == 'directionality':
             index_algorithm = tad.directionality_index
             tad_algorithm = tad.call_tads_directionality_index
         else:
-            raise ValueError("Algorithm (-a) can only be directionality or insulation, not %s!" % args.algorithm)
+            raise ValueError("Algorithm (-a) can only be directionality, insulation or ninsulation, "
+                             "not %s!" % args.algorithm)
 
         logging.info("Calculating index...")
         index = index_algorithm(matrix, regions=regions, window_size=args.window_size)

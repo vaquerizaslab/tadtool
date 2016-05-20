@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 from tadtool.tad import GenomicRegion, sub_matrix_regions, sub_data_regions, \
     data_array, insulation_index, sub_vector_regions, sub_regions, \
-    call_tads_insulation_index, directionality_index, call_tads_directionality_index
+    call_tads_insulation_index, directionality_index, call_tads_directionality_index, normalised_insulation_index
 import math
 import copy
 import numpy as np
@@ -514,6 +514,14 @@ class TADtoolPlot(object):
                 self.matrix_colormap = LinearSegmentedColormap.from_list('myreds', ['white', 'red'])
             if data_colormap is None:
                 self.data_plot_color = 'plasma'
+        elif algorithm == 'ninsulation':
+            self.tad_algorithm = normalised_insulation_index
+            self.tad_calling_algorithm = call_tads_insulation_index
+            self.is_symmetric = True
+            if matrix_colormap is None:
+                self.matrix_colormap = LinearSegmentedColormap.from_list('myreds', ['white', 'red'])
+            if data_colormap is None:
+                self.data_plot_color = LinearSegmentedColormap.from_list('myreds', ['blue', 'white', 'red'])
         elif algorithm == 'directionality':
             self.tad_algorithm = directionality_index
             self.tad_calling_algorithm = call_tads_directionality_index
@@ -614,7 +622,7 @@ class TADtoolPlot(object):
 
         # add subplot content
         max_value = np.nanpercentile(self.hic_matrix, self.max_percentile)
-        init_value = .3*max_value
+        init_value = .2*max_value
 
         # HI-C VMAX SLIDER
         self.svmax = Slider(hic_vmax_slider_ax, 'vmax', self.min_value, max_value, valinit=init_value, color='grey')
@@ -628,7 +636,7 @@ class TADtoolPlot(object):
         # generate data array
         self.min_value_data = np.nanmin(self.da[np.nonzero(self.da)])
         max_value_data = np.nanpercentile(self.da, self.max_percentile)
-        init_value_data = .3*max_value_data
+        init_value_data = .5*max_value_data
 
         # LINE PLOT
         da_ix = int(self.da.shape[0]/2)

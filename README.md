@@ -101,7 +101,7 @@ optional arguments:
                         respectively.
   -a ALGORITHM, --algorithm ALGORITHM
                         TAD-calling algorithm. Options: insulation,
-                        directionality. Default: insulation.
+                        ninsulation, directionality. Default: insulation.
   -m MAX_DIST, --max-distance MAX_DIST
                         Maximum distance in base-pairs away from the diagonal
                         to be shown in Hi-C plot. Default: 3000000
@@ -112,7 +112,7 @@ optional arguments:
 
 `plot` takes three mandatory (positional) arguments:
 
-* A (square) Hi-C matrix file, which can be either simply a tab-delimited text file, or a numpy `.npy` file. The latter is for the tech-savvy and can be created with the `numpy.save` method in Python. It is possible to load large matrices at high resolution, but bear in mind that a large matrix will consume more memory and may slow down TAD calculations. We recommend using intra-chromosomal matrices of a single chromosome for the best experience.
+* A (square) Hi-C matrix file, which can be either simply a tab-delimited text file, or a numpy `.npy` file. The latter is for the tech-savvy and can be created with the `numpy.save` method in Python. It is possible to load large matrices at high resolution, but bear in mind that a large matrix will consume more memory and may slow down TAD calculations. We recommend using intra-chromosomal matrices of a single chromosome for the best experience. Alternatively, it is possible to use several smaller sub-matrices to identify suitable TAD-calling parameters in the interactive tool, and to call TADs on the whole matrix (or individual chromosome matrices) using the non-interactive `tads` command (see below).
 
 * A BED3 file with region information for the Hi-C matrix, i.e. a tab-delimited file where each row contains chromosome name, start, and end coordinates (inclusive) of the region. This file must not contain any headers.
 
@@ -130,7 +130,7 @@ Optional arguments give you more control about the data that is generated:
 
 * `-w` lets you define a custom range of window sizes, either as a file (`txt` or `npy`), a range, or specific values.
 
-* `-a` lets you select the directionality index instead of the insulation index.
+* `-a` lets you select the directionality index instead of the insulation index or, by using `ninsulation`, the insulation index can be normalised to a chromosomal or region average.
 
 * `-m` lets you specify a distance away from the Hi-C matrix diagonal that should be omitted from the plot.
 
@@ -156,19 +156,19 @@ This triangular plot shows a Hi-C map in the selected region from the command li
 
 ![TADtool main window](docs/images/line.png)
 
-This plot shows the insulation or directionality index for each region in the Hi-C matrix at the currently selected window size. Red lines indicate the cutoff that is used to call TADs in this plot. Clicking within the plotting area moves the cutoff and simultaneously recalculates the TADs with the new cutoff.
+This plot shows the insulation or directionality index for each region in the Hi-C matrix at the currently selected window size. The red line(s) indicate the cutoff that is used to call TADs in this plot. Clicking within the plotting area moves the cutoff and simultaneously recalculates the TADs with the new cutoff. By default, for non-symmetric indexes (insulation index), the cutoff is set directly between the maximum and minimum of the y axis. For symmetric indexes (ninsulation, directionality), the cutoff is set to +/- half the maximum of the y axis.
 
 ##### Heatmap
 
 ![TADtool main window](docs/images/data.png)
 
-The heatmap shows all insulation/directionality indexes for each specified window size simultaneously in a condensed form. Every row corresponds to one window size. A blue bar indicates the currently chosen window size. Clicking within the plotting area changes the current window size and updates the index plot and TAD indicators.
+The heatmap shows all insulation/directionality indexes for each specified window size simultaneously in a condensed form. Every row corresponds to one window size. A red bar indicates the currently chosen window size. Clicking within the plotting area changes the current window size and updates the index plot and TAD indicators. By default, the window size is set to the middle of all calculated window sizes.
 
 ##### Export buttons
 
 ![TADtool main window](docs/images/buttons.png)
 
-At the bottom of the plotting window you will find three buttons that allow you to export TADs, index data, and the index matrix, respectively.
+At the bottom of the plotting window you will find three buttons that allow you to export TADs, index data, and the index matrix, respectively. Exported values are calculated for the whole supplied matrix, not just the visible region.
 
 ### `tads`
 
@@ -191,9 +191,13 @@ positional arguments:
 
 optional arguments:
   -h, --help            show this help message and exit
-  -a ALGORITHM, --algorithm ALGORITHM
+	-a ALGORITHM, --algorithm ALGORITHM
                         TAD-calling algorithm. Options: insulation,
-                        directionality. Default: insulation.
+                        ninsulation, directionality. Default: insulation.
+  -n NORMALISATION_WINDOW, --normalisation-window NORMALISATION_WINDOW
+                        Normalisation window in number of regions. Only
+                        affects ninsulation algorithm. If not specified,
+                        window will be the whole chromosome.
 ```
 
-As `plot`, `tads` needs a Hi-C matrix and a regions BED file as input. In addition, it requires a window size in base pairs and a cutoff (floating point). Optionally, the user can specify an output file to save TAD regions, otherwise TADs will be written to the command line.
+As `plot`, `tads` needs a Hi-C matrix and a regions BED file as input. In addition, it requires a window size in base pairs and a cutoff (floating point). Optionally, the user can specify an output file to save TAD regions, otherwise TADs will be written to the command line. For further parameters, see `plot`.
