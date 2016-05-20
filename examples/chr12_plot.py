@@ -2,7 +2,7 @@ import tadtool.tad as tad
 import tadtool.plot as tp
 
 # load regions data set
-regions = tad.HicRegionFileReader().regions("chr12_20-35Mb_regions.bed chr12_plot.py")
+regions = tad.HicRegionFileReader().regions("chr12_20-35Mb_regions.bed")
 
 # load matrix
 matrix = tad.HicMatrixFileReader().matrix("chr12_20-35Mb.matrix.txt")
