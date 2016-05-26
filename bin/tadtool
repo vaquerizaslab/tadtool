@@ -262,7 +262,7 @@ class TADtool(object):
         logging.info("Calculating index...")
         index = index_algorithm(matrix, regions=regions, window_size=args.window_size)
         logging.info("Calling TADs")
-        tads = tad_algorithm(index, cutoff=args.cutoff)
+        tads = tad_algorithm(index, cutoff=args.cutoff, regions=regions)
 
         if args.output is not None:
             output = os.path.expanduser(args.output)

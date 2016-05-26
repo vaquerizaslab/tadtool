@@ -729,6 +729,7 @@ def call_tads_directionality_index(di_results, cutoff, regions=None):
     :param regions: A list of :class:`~GenomicRegion`s - if omitted, will create a dummy list
     """
     if regions is None:
+        regions = []
         for i in xrange(len(di_results)):
             regions.append(GenomicRegion(chromosome='', start=i, end=i))
 
