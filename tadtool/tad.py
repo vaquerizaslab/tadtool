@@ -1,6 +1,7 @@
 from __future__ import division
 import numpy as np
 import progressbar
+import itertools
 
 
 class GenomicRegion(object):
@@ -527,7 +528,6 @@ def insulation_index(hic_matrix, regions=None, window_size=500000, relative=Fals
     skipped = 0
     last_chromosome = None
     ins_by_chromosome = []
-    print "L regions: ", len(regions)
     for i, r in enumerate(regions):
         if r.chromosome != last_chromosome:
             last_chromosome = r.chromosome
@@ -595,8 +595,7 @@ def insulation_index(hic_matrix, regions=None, window_size=500000, relative=Fals
         for i in xrange(len(ins_by_chromosome)):
             ins_by_chromosome[i] = np.gradient(ins_by_chromosome[i])
 
-    ins_matrix = np.array(ins_by_chromosome).ravel()
-    print "L matrix, l regions: ", len(ins_matrix), len(regions)
+    ins_matrix = np.array(list(itertools.chain.from_iterable(ins_by_chromosome)))
     return ins_matrix
 
 
@@ -696,7 +695,6 @@ def call_tads_insulation_index(ii_results, cutoff, regions=None):
         for i in xrange(len(ii_results)):
             regions.append(GenomicRegion(chromosome='', start=i, end=i))
 
-    print "call_tads L matrix, l regions: ", len(ii_results), len(regions)
     if len(regions) != len(ii_results):
         raise ValueError("Insulation index results and regions must be the same size!")
 
