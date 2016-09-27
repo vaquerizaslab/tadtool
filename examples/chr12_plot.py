@@ -12,5 +12,6 @@ tad_plot = tp.TADtoolPlot(matrix, regions, norm='lin', max_dist=1000000, algorit
 fig, axes = tad_plot.plot('chr12:31000000-34000000')
 
 # show plot
-fig.show()
+import matplotlib.pyplot as plt
+plt.show()
 
