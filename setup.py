@@ -2,11 +2,11 @@ from setuptools import setup, find_packages
 
 setup(
     name='tadtool',
-    version='0.61',
+    version='0.62',
     description='Assistant to find cutoffs in TAD calling algorithms.',
     packages=find_packages(exclude=["test"]),
     install_requires=[
-        'numpy',
+        'numpy>=1.9.0',
         'matplotlib',
         'progressbar2'
     ],
