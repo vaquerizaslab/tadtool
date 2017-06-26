@@ -261,10 +261,8 @@ class TADtool(object):
                              "not %s!" % args.algorithm)
 
         logging.info("Calculating index...")
-        print("tadtool l regions: ", len(regions))
         index = index_algorithm(matrix, regions=regions, window_size=args.window_size)
         logging.info("Calling TADs")
-        print("L matrix, l regions: ", len(index), len(regions))
         tads = tad_algorithm(index, cutoff=args.cutoff, regions=regions)
 
         if args.output is not None:
