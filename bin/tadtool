@@ -115,6 +115,7 @@ class TADtool(object):
         args = parser.parse_args(sys.argv[2:])
         regions_file = os.path.expanduser(args.regions)
         matrix_file = os.path.expanduser(args.matrix)
+        data_file = None if args.data is None else os.path.expanduser(args.data)
 
         import tadtool.tad as tad
         from functools import partial
@@ -174,13 +175,13 @@ class TADtool(object):
                                                 tad_method=tad_algorithm, window_sizes=window_sizes)
         else:
             logging.info("Loading data file...")
-            data = tad.HicMatrixFileReader().matrix(os.path.expanduser(args.data))
+            data = tad.load_matrix(data_file, square=False)
             if data.shape[0] != len(window_sizes):
                 raise ValueError("Number of rows in data (%d) must equal the number of window sizes (%d)!" % (
-                data.shape[0], len(window_sizes)))
+                    data.shape[0], len(window_sizes)))
             if data.shape[1] != matrix.shape[0]:
                 raise ValueError("Number of columns in data (%d) must equal matrix rows (%d)!" % (
-                data.shape[0], matrix.shape[0]))
+                    data.shape[0], matrix.shape[0]))
 
         import tadtool.plot as tp
         logging.info("Done. Showing plot...")

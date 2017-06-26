@@ -236,7 +236,7 @@ def sub_vector_regions(data, regions, region):
     return np.copy(data[start_ix:end_ix+1]), sr
 
 
-def load_matrix(file_name, size=None, sep=None):
+def load_matrix(file_name, size=None, sep=None, square=True):
     try:  # numpy binary format
         m = np.load(file_name)
     except IOError:  # not an .npy file
@@ -249,10 +249,8 @@ def load_matrix(file_name, size=None, sep=None):
             line = line.rstrip()
             n_fields = len(line.split(sep))
 
-        if n_fields > 3:  # square matrix format
+        if n_fields > 3 or not square:  # square matrix format
             m = np.loadtxt(file_name)
-            if m.shape[0] != m.shape[1]:
-                raise ValueError("Matrix dimensions do not match! ({})".format(m.shape))
         else:
             if size is None:
                 raise ValueError("Must provide matrix size when importing from sparse matrix notation "
@@ -267,6 +265,10 @@ def load_matrix(file_name, size=None, sep=None):
                     source, sink, weight = int(fields[0]), int(fields[1]), float(fields[2])
                     m[source, sink] = weight
                     m[sink, source] = weight
+
+    if square and m.shape[0] != m.shape[1]:
+        raise ValueError("Matrix dimensions do not match! ({})".format(m.shape))
+
     return m
 
 
