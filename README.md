@@ -51,7 +51,7 @@ or download the source from our [GitHub repo](https://github.com/vaquerizaslab/t
 python setup.py install
 ```
 
-This should install both the Python 2 package and a command-line executable called __tadtool__.
+This should install both the Python package and a command-line executable called `tadtool`.
 
 Test the installation running
 
@@ -80,7 +80,9 @@ Main interactive TADtool plotting window
 
 positional arguments:
   matrix                Square Hi-C Matrix as tab-delimited or .npy file
-                        (created with numpy.save)
+                        (created with numpy.save) or sparse matrix format
+                        (each line: 
+                        <row region index> <column region index> <matrix value>)
   regions               BED3 file (no header) with regions corresponding to
                         the number of rows in the provided matrix.
   plotting_region       Region of the Hi-C matrix to display in plot. Format:
@@ -112,7 +114,19 @@ optional arguments:
 
 `plot` takes three mandatory (positional) arguments:
 
-* A (square) Hi-C matrix file, which can be either simply a tab-delimited text file, or a numpy `.npy` file. The latter is for the tech-savvy and can be created with the `numpy.save` method in Python. It is possible to load large matrices at high resolution, but bear in mind that a large matrix will consume more memory and may slow down TAD calculations. We recommend using intra-chromosomal matrices of a single chromosome for the best experience. Alternatively, it is possible to use several smaller sub-matrices to identify suitable TAD-calling parameters in the interactive tool, and to call TADs on the whole matrix (or individual chromosome matrices) using the non-interactive `tads` command (see below).
+* A Hi-C matrix file, which can be
+    * square matrix format: a tab-delimited text file that has the same number of columns as lines.
+      Will be read internally by `numpy.loadtxt`
+    * sparse matrix format: a tab delimited file where each line has three columns:
+      \<row index\> \<column index\> \<value\>
+    *  a numpy `.npy` file: created from a numpy matrix in Python with the `numpy.save` method 
+
+> NOTE: It is possible to load large matrices at high resolution, but bear in mind that a 
+  large matrix will consume more memory and may slow down TAD calculations. We recommend using 
+  intra-chromosomal matrices of a single chromosome for the best experience. Alternatively, 
+  it is possible to use several smaller sub-matrices to identify suitable TAD-calling parameters 
+  in the interactive tool, and to call TADs on the whole matrix (or individual chromosome matrices) 
+  using the non-interactive `tads` command (see below).
 
 * A BED3 file with region information for the Hi-C matrix, i.e. a tab-delimited file where each row contains chromosome name, start, and end coordinates (inclusive) of the region. This file must not contain any headers.
 
@@ -182,7 +196,9 @@ Call TADs with pre-defined parameters
 
 positional arguments:
   matrix                Square Hi-C Matrix as tab-delimited or .npy file
-                        (created with numpy.save)
+                        (created with numpy.save) or sparse matrix format
+                        (each line: 
+                        <row region index> <column region index> <matrix value>)
   regions               BED3 file (no header) with regions corresponding to
                         the number of rows in the provided matrix.
   window_size           Window size in base pairs
