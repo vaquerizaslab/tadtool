@@ -2,6 +2,7 @@ from __future__ import division
 import numpy as np
 import progressbar
 import itertools
+from future.utils import string_types
 
 
 class GenomicRegion(object):
@@ -159,7 +160,7 @@ def sub_regions(regions, region):
     :param regions: List of :class:`~GenomicRegion`
     :param region: :class:`~GenomicRegion` used for overlap calculation
     """
-    if isinstance(region, basestring):
+    if isinstance(region, string_types):
         region = GenomicRegion.from_string(region)
 
     sr = []
@@ -232,79 +233,55 @@ def sub_vector_regions(data, regions, region):
     return np.copy(data[start_ix:end_ix+1]), sr
 
 
-class HicMatrixFileReader(object):
-    """
-    Class to read a Hi-C matrix from file.
-    """
-    def __init__(self, file_name=None):
-        self.m = None
+def load_matrix(file_name, size=None, sep=None):
+    try:  # numpy binary format
+        m = np.load(file_name)
+    except IOError:  # not an .npy file
 
-        if file_name is not None:
-            self.load(file_name)
-
-    def load(self, file_name):
-        """
-        Load a Hi-C matrix into this object.
-
-        :param file_name: Path to a .npy or tab-delimited .txt file
-        """
-        try:
-            self.m = np.load(file_name)
-        except IOError:
-            self.m = np.loadtxt(file_name)
-
-    def matrix(self, file_name=None):
-        """
-        Get matrix loaded by this object (or load matrix from file, if provided)
-
-        :param file_name: Path to a .npy or tab-delimited .txt file
-        """
-        if self.m is None and file_name is not None:
-            self.load(file_name)
-        else:
-            raise ValueError("Either provide a file name or explicitly use 'load' before requesting matrix")
-        return self.m
-
-
-class HicRegionFileReader(object):
-    """
-    Class to read a BED3 file with genomic regions
-    """
-    def __init__(self, file_name=None, _separator="\t"):
-        self.sep = _separator
-        self.r = None
-        if file_name is not None:
-            self.load(file_name)
-
-    def load(self, file_name):
-        """
-        Load genomic regions from file into a list of :class:`~GenomicRegion` objects
-
-        :param file_name: Path to a BED3 file
-        """
-        regions = []
+        # check number of fields in file
         with open(file_name, 'r') as f:
-            for line in f:
-                line = line.rstrip()
-                fields = line.split(self.sep)
-                if len(fields) > 2:
-                    chromosome = fields[0]
-                    start = int(fields[1])
-                    end = int(fields[2])
-                    regions.append(GenomicRegion(chromosome=chromosome, start=start, end=end))
-        self.r = regions
+            line = f.readline()
+            while line.startswith('#'):
+                line = f.readline()
+            line = line.rstrip()
+            n_fields = len(line.split(sep))
 
-    def regions(self, file_name=None):
-        """
-        Get list of regions loaded into this object or load from file, if filename provided
-
-        :param file_name: Path to a BED3 file
-        """
-        if self.r is None and file_name is not None:
-            self.load(file_name)
+        if n_fields > 3:  # square matrix format
+            m = np.loadtxt(file_name)
+            if m.shape[0] != m.shape[1]:
+                raise ValueError("Matrix dimensions do not match! ({})".format(m.shape))
         else:
-            raise ValueError("Either provide a file name or explicitly use 'load' before requesting regions")
-        return self.r
+            if size is None:
+                raise ValueError("Must provide matrix size when importing from BED3 (HicPro, etc)")
+            m = np.zeros((size, size))
+            with open(file_name, 'r') as f:
+                for line in f:
+                    if line.startswith("#"):
+                        continue
+                    line = line.rstrip()
+                    fields = line.split(sep)
+                    source, sink, weight = int(fields[0]), int(fields[1]), float(fields[2])
+                    m[source, sink] = weight
+                    m[sink, source] = weight
+    return m
+
+
+def load_regions(file_name, sep=None):
+    regions = []
+    with open(file_name, 'r') as f:
+        for i, line in enumerate(f):
+            line = line.rstrip()
+            fields = line.split(sep)
+            if len(fields) > 2:
+                chromosome = fields[0]
+                start = int(fields[1])
+                end = int(fields[2])
+                ix = i
+                if len(fields) > 3:  # HicPro
+                    ix = int(fields[3]) - 1
+                    start += 1
+                regions.append(GenomicRegion(chromosome=chromosome, start=start, end=end, ix=ix))
+    return regions
 
 
 def _get_boundary_distances(regions):
@@ -320,12 +297,12 @@ def _get_boundary_distances(regions):
         chromosome = region.chromosome
         if last_chromosome is not None and chromosome != last_chromosome:
             chromosome_length = i-last_chromosome_index
-            for j in xrange(chromosome_length):
+            for j in range(chromosome_length):
                 boundary_dist[last_chromosome_index+j] = min(j, i-last_chromosome_index-1-j)
             last_chromosome_index = i
         last_chromosome = chromosome
     chromosome_length = n_bins-last_chromosome_index
-    for j in xrange(chromosome_length):
+    for j in range(chromosome_length):
         boundary_dist[last_chromosome_index+j] = min(j, n_bins-last_chromosome_index-1-j)
 
     return boundary_dist
@@ -340,7 +317,7 @@ def directionality_index(hic, regions=None, window_size=2000000):
     :param window_size: A window size in base pairs
     """
     if regions is None:
-        for i in xrange(hic.shape[0]):
+        for i in range(hic.shape[0]):
             regions.append(GenomicRegion(chromosome='', start=i, end=i))
 
     bin_size = regions[0].end-regions[0].start+1
@@ -353,8 +330,8 @@ def directionality_index(hic, regions=None, window_size=2000000):
 
     left_sums = np.zeros(n_bins)
     right_sums = np.zeros(n_bins)
-    for source in xrange(hic.shape[0]):
-        for sink in xrange(source, hic.shape[1]):
+    for source in range(hic.shape[0]):
+        for sink in range(source, hic.shape[1]):
             weight = hic[source, sink]
 
             if source == sink:
@@ -366,7 +343,7 @@ def directionality_index(hic, regions=None, window_size=2000000):
                     right_sums[source] += weight
 
     di = np.zeros(n_bins)
-    for i in xrange(n_bins):
+    for i in range(n_bins):
         A = left_sums[i]
         B = right_sums[i]
         E = (A+B)/2
@@ -423,7 +400,7 @@ def impute_missing_bins(hic_matrix, regions=None, per_chromosome=True, stat=np.m
     :param stat: The aggregation statistic to be used for imputation, defaults to the mean.
     """
     if regions is None:
-        for i in xrange(hic_matrix.shape[0]):
+        for i in range(hic_matrix.shape[0]):
             regions.append(GenomicRegion(chromosome='', start=i, end=i))
 
     chr_bins = dict()
@@ -503,7 +480,7 @@ def insulation_index(hic_matrix, regions=None, window_size=500000, relative=Fals
     :param gradient: Return the first derivative of the insulation index
     """
     if regions is None:
-        for i in xrange(hic_matrix.shape[0]):
+        for i in range(hic_matrix.shape[0]):
             regions.append(GenomicRegion(chromosome='', start=i, end=i))
 
     bin_size = regions[0].end-regions[0].start+1
@@ -585,14 +562,14 @@ def insulation_index(hic_matrix, regions=None, window_size=500000, relative=Fals
                 ins_by_chromosome[-1].append(s)
 
     if normalize:
-        for i in xrange(len(ins_by_chromosome)):
+        for i in range(len(ins_by_chromosome)):
             if normalization_window is not None:
                 ins_by_chromosome[i] = np.ma.log2(ins_by_chromosome[i]/_apply_sliding_func(
                     ins_by_chromosome[i], normalization_window, func=np.nanmean))
             else:
                 ins_by_chromosome[i] = np.ma.log2(ins_by_chromosome[i]/np.nanmean(ins_by_chromosome[i]))
     if gradient:
-        for i in xrange(len(ins_by_chromosome)):
+        for i in range(len(ins_by_chromosome)):
             ins_by_chromosome[i] = np.gradient(ins_by_chromosome[i])
 
     ins_matrix = np.array(list(itertools.chain.from_iterable(ins_by_chromosome)))
@@ -619,7 +596,7 @@ def data_array(hic_matrix, regions, tad_method=insulation_index,
         window_sizes = [int(i) for i in np.logspace(4, 6, 100)]
 
     if regions is None:
-        for i in xrange(hic_matrix.shape[0]):
+        for i in range(hic_matrix.shape[0]):
             regions.append(GenomicRegion(chromosome='', start=i, end=i))
 
     try:
@@ -675,7 +652,7 @@ def call_tad_borders(ii_results, cutoff=0):
     """
     tad_borders = []
     g = np.gradient(ii_results)
-    for i in xrange(len(ii_results)):
+    for i in range(len(ii_results)):
         border_type = _border_type(i, g)
         if border_type == 1 and ii_results[i] <= cutoff:
             tad_borders.append(i)
@@ -692,7 +669,7 @@ def call_tads_insulation_index(ii_results, cutoff, regions=None):
     """
     if regions is None:
         regions = []
-        for i in xrange(len(ii_results)):
+        for i in range(len(ii_results)):
             regions.append(GenomicRegion(chromosome='', start=i, end=i))
 
     if len(regions) != len(ii_results):
@@ -705,7 +682,7 @@ def call_tads_insulation_index(ii_results, cutoff, regions=None):
     for border in borders:
         if previous is not None:
             found_max = False
-            for j in xrange(previous, border+1):
+            for j in range(previous, border+1):
                 if ii_results[j] >= cutoff:
                     found_max = True
 
@@ -731,7 +708,7 @@ def call_tads_directionality_index(di_results, cutoff, regions=None):
     """
     if regions is None:
         regions = []
-        for i in xrange(len(di_results)):
+        for i in range(len(di_results)):
             regions.append(GenomicRegion(chromosome='', start=i, end=i))
 
     tad_regions = []
