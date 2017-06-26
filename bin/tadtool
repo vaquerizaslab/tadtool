@@ -111,14 +111,17 @@ class TADtool(object):
         )
 
         args = parser.parse_args(sys.argv[2:])
+        regions_file = os.path.expanduser(args.regions)
+        matrix_file = os.path.expanduser(args.matrix)
 
         import tadtool.tad as tad
         from functools import partial
 
-        logging.info("Loading matrix...")
-        matrix = tad.HicMatrixFileReader().matrix(os.path.expanduser(args.matrix))
         logging.info("Loading regions...")
-        regions = tad.HicRegionFileReader().regions(os.path.expanduser(args.regions))
+        regions = tad.load_regions(regions_file)
+
+        logging.info("Loading matrix...")
+        matrix = tad.load_matrix(matrix_file, len(regions))
 
         if len(regions) != matrix.shape[0]:
             raise ValueError("Regions ({}) must be the same length as rows in matrix ({})!".format(len(regions),
@@ -232,14 +235,17 @@ class TADtool(object):
         )
 
         args = parser.parse_args(sys.argv[2:])
+        regions_file = os.path.expanduser(args.regions)
+        matrix_file = os.path.expanduser(args.matrix)
 
         import tadtool.tad as tad
         from functools import partial
 
-        logging.info("Loading matrix...")
-        matrix = tad.HicMatrixFileReader().matrix(os.path.expanduser(args.matrix))
         logging.info("Loading regions...")
-        regions = tad.HicRegionFileReader().regions(os.path.expanduser(args.regions))
+        regions = tad.load_regions(regions_file)
+
+        logging.info("Loading matrix...")
+        matrix = tad.load_matrix(matrix_file, len(regions))
 
         if len(regions) != matrix.shape[0]:
             raise ValueError("Regions must be the same length as rows in matrix!")
