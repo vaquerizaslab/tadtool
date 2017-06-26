@@ -121,7 +121,8 @@ class TADtool(object):
         regions = tad.HicRegionFileReader().regions(os.path.expanduser(args.regions))
 
         if len(regions) != matrix.shape[0]:
-            raise ValueError("Regions must be the same length as rows in matrix!")
+            raise ValueError("Regions ({}) must be the same length as rows in matrix ({})!".format(len(regions),
+                                                                                                   matrix.shape[0]))
 
         if matrix.shape[0] != matrix.shape[1]:
             raise ValueError("Matrix must be square!")
