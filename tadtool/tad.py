@@ -252,7 +252,8 @@ def load_matrix(file_name, size=None, sep=None):
                 raise ValueError("Matrix dimensions do not match! ({})".format(m.shape))
         else:
             if size is None:
-                raise ValueError("Must provide matrix size when importing from BED3 (HicPro, etc)")
+                raise ValueError("Must provide matrix size when importing from sparse matrix notation "
+                                 "(HicPro, etc)")
             m = np.zeros((size, size))
             with open(file_name, 'r') as f:
                 for line in f:
