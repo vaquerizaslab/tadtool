@@ -167,7 +167,7 @@ def sub_regions(regions, region):
     start_ix = None
     end_ix = None
     for i, r in enumerate(regions):
-        if r.start <= region.end and r.end >= region.start:
+        if r.chromosome == region.chromosome and r.start <= region.end and r.end >= region.start:
             if start_ix is None:
                 start_ix = i
             end_ix = i
@@ -175,6 +175,9 @@ def sub_regions(regions, region):
         else:
             if end_ix is not None:
                 break
+
+    if start_ix is None or end_ix is None:
+        raise ValueError("Region not found in dataset! {}".format(region))
 
     return sr, start_ix, end_ix
 
