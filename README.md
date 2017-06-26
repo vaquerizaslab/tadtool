@@ -4,7 +4,7 @@ TADtool is an interactive tool for the identification of meaningful parameters i
 
 ![TADtool main window](docs/images/tadtool.png)
 
-<!-- TOC depthFrom:1 depthTo:6 withLinks:1 updateOnSave:1 orderedList:0 -->
+<!-- TOC depthFrom:1 depthTo:8 withLinks:1 updateOnSave:1 orderedList:0 -->
 
 - [TADtool](#tadtool)
 	- [Quick start](#quick-start)
@@ -13,10 +13,6 @@ TADtool is an interactive tool for the identification of meaningful parameters i
 		- [`plot`](#plot)
 			- [Launching from the command line](#launching-from-the-command-line)
 			- [Interactive plotting window](#interactive-plotting-window)
-				- [Hi-C plot](#hi-c-plot)
-				- [Index plot](#index-plot)
-				- [Heatmap](#heatmap)
-				- [Export buttons](#export-buttons)
 		- [`tads`](#tads)
 
 <!-- /TOC -->
