@@ -177,7 +177,7 @@ def sub_regions(regions, region):
                 break
 
     if start_ix is None or end_ix is None:
-        raise ValueError("Region not found in dataset! {}".format(region))
+        raise ValueError("Region not found in dataset! {}:{}-{}".format(region.chromosome, region.start, region.end))
 
     return sr, start_ix, end_ix
 

@@ -116,12 +116,16 @@ class TADtool(object):
         regions_file = os.path.expanduser(args.regions)
         matrix_file = os.path.expanduser(args.matrix)
         data_file = None if args.data is None else os.path.expanduser(args.data)
+        plotting_region = args.plotting_region
 
         import tadtool.tad as tad
         from functools import partial
 
         logging.info("Loading regions...")
         regions = tad.load_regions(regions_file)
+
+        logging.info("Checking plotting region in matrix...")
+        tad.sub_regions(regions, plotting_region)
 
         logging.info("Loading matrix...")
         matrix = tad.load_matrix(matrix_file, len(regions))
@@ -171,6 +175,7 @@ class TADtool(object):
                 raise ValueError("Algorithm (-a) can only be directionality, insulation or ninsulation,"
                                  " not %s!" % args.algorithm)
 
+            logging.info("Calculating index...")
             data, window_sizes = tad.data_array(hic_matrix=matrix, regions=regions,
                                                 tad_method=tad_algorithm, window_sizes=window_sizes)
         else:
@@ -187,7 +192,7 @@ class TADtool(object):
         logging.info("Done. Showing plot...")
         tad_plot = tp.TADtoolPlot(matrix, regions, data=data, window_sizes=window_sizes,
                                   norm='lin', max_dist=args.max_dist, algorithm=args.algorithm)
-        fig, axes = tad_plot.plot(args.plotting_region)
+        fig, axes = tad_plot.plot(plotting_region)
         tp.plt.show(block=True)  # necessary so that window won't close immediately
 
     def tads(self):
