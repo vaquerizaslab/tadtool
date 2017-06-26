@@ -14,8 +14,14 @@ import math
 import copy
 import numpy as np
 from bisect import bisect_left
-import Tkinter
-import tkFileDialog
+from future.utils import string_types
+
+try:
+    import Tkinter as tk
+    import tkFileDialog as filedialog
+except ImportError:
+    import tkinter as tk
+    from tkinter import filedialog
 
 
 class BasePlotter(object):
@@ -184,7 +190,7 @@ class BasePlotter1D(BasePlotter):
         BasePlotter.__init__(self, title=title)
 
     def plot(self, region=None, ax=None, **kwargs):
-        if isinstance(region, basestring):
+        if isinstance(region, string_types):
             region = GenomicRegion.from_string(region)
         if ax:
             self.ax = ax
@@ -218,7 +224,7 @@ class BasePlotterHic(object):
     def __init__(self, hic_matrix, regions=None, colormap='RdBu', norm="log",
                  vmin=None, vmax=None, show_colorbar=True, blend_masked=False):
         if regions is None:
-            for i in xrange(hic_matrix.shape[0]):
+            for i in range(hic_matrix.shape[0]):
                 regions.append(GenomicRegion(chromosome='', start=i, end=i))
         self.regions = regions
         self.hic_matrix = hic_matrix
@@ -266,9 +272,9 @@ class HicPlot(BasePlotter1D, BasePlotterHic):
         hm[np.tril_indices(hm.shape[0])] = np.nan
         # Remove part of matrix further away than max_dist
         if self.max_dist is not None:
-            for i in xrange(hm.shape[0]):
+            for i in range(hm.shape[0]):
                 i_region = sr[i]
-                for j in xrange(hm.shape[1]):
+                for j in range(hm.shape[1]):
                     j_region = sr[j]
 
                     if j_region.start-i_region.end > self.max_dist:
@@ -316,7 +322,7 @@ class DataArrayPlot(BasePlotter1D):
                  colormap='coolwarm_r', vmax=None, current_window_size=0, log_y=True):
         if regions is None:
             regions = []
-            for i in xrange(data.shape[1]):
+            for i in range(data.shape[1]):
                 regions.append(GenomicRegion(chromosome='', start=i, end=i))
         self.regions = regions
 
@@ -328,7 +334,7 @@ class DataArrayPlot(BasePlotter1D):
                 l = len(data)
             except TypeError:
                 l = data.shape[0]
-            for i in xrange(l):
+            for i in range(l):
                 window_sizes.append(i)
 
         self.window_sizes = window_sizes
@@ -400,7 +406,7 @@ class DataLinePlot(BasePlotter1D):
         BasePlotter1D.__init__(self, title=title)
         if regions is None:
             regions = []
-            for i in xrange(len(data)):
+            for i in range(len(data)):
                 regions.append(GenomicRegion(chromosome='', start=i, end=i))
 
         self.init_row = init_row
@@ -475,7 +481,7 @@ class TADtoolPlot(object):
         self.hic_matrix = hic_matrix
         if regions is None:
             regions = []
-            for i in xrange(hic_matrix.shape[0]):
+            for i in range(hic_matrix.shape[0]):
                 regions.append(GenomicRegion(chromosome='', start=i, end=i))
         self.regions = regions
         self.norm = norm
@@ -550,16 +556,16 @@ class TADtoolPlot(object):
             self.data_plot.set_clim(self.min_value_data, val)
 
     def on_click_save_tads(self, event):
-        Tkinter.Tk().withdraw()  # Close the root window
-        save_path = tkFileDialog.asksaveasfilename()
+        tk.Tk().withdraw()  # Close the root window
+        save_path = filedialog.asksaveasfilename()
         if save_path is not None:
             with open(save_path, 'w') as o:
                 for region in self.tad_regions:
                     o.write("%s\t%d\t%d\n" % (region.chromosome, region.start, region.end))
 
     def on_click_save_vector(self, event):
-        Tkinter.Tk().withdraw()  # Close the root window
-        save_path = tkFileDialog.asksaveasfilename()
+        tk.Tk().withdraw()  # Close the root window
+        save_path = filedialog.asksaveasfilename()
         if save_path is not None:
             da_sub = self.da[self.current_da_ix]
             with open(save_path, 'w') as o:
@@ -567,8 +573,8 @@ class TADtoolPlot(object):
                     o.write("%s\t%d\t%d\t%e\n" % (region.chromosome, region.start, region.end, da_sub[i]))
 
     def on_click_save_matrix(self, event):
-        Tkinter.Tk().withdraw()  # Close the root window
-        save_path = tkFileDialog.asksaveasfilename()
+        tk.Tk().withdraw()  # Close the root window
+        save_path = filedialog.asksaveasfilename()
         if save_path is not None:
             with open(save_path, 'w') as o:
                 # write regions
@@ -582,11 +588,11 @@ class TADtoolPlot(object):
                 # write matrix
                 n_rows = self.da.shape[0]
                 n_cols = self.da.shape[1]
-                for i in xrange(n_rows):
+                for i in range(n_rows):
                     window_size = self.ws[i]
                     o.write("%d\t" % window_size)
 
-                    for j in xrange(n_cols):
+                    for j in range(n_cols):
                         o.write("%e" % self.da[i, j])
                         if j < n_cols-1:
                             o.write("\t")
