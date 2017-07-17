@@ -19,7 +19,7 @@ TADtool is an interactive tool for the identification of meaningful parameters i
 
 ## Quick start
 
-Installation:
+TADtool is supported on Linux and macOS. It might work on Windows, but is unsupported. Installation:
 
 ```
 pip install tadtool
