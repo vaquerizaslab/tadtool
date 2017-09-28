@@ -381,18 +381,21 @@ class TADPlot(BasePlotter1D):
 
     def _plot(self, region=None, cax=None):
         self.current_region = region
-        sr, start_ix, end_ix = sub_regions(self.regions, region)
-        trans = self.ax.get_xaxis_transform()
-        for r in sr:
-            region_patch = patches.Rectangle(
-                (r.start, .2),
-                width=abs(r.end - r.start), height=.6,
-                transform=trans,
-                facecolor=self.color,
-                edgecolor='white',
-                linewidth=2.
-            )
-            self.ax.add_patch(region_patch)
+        try:
+            sr, start_ix, end_ix = sub_regions(self.regions, region)
+            trans = self.ax.get_xaxis_transform()
+            for r in sr:
+                region_patch = patches.Rectangle(
+                    (r.start, .2),
+                    width=abs(r.end - r.start), height=.6,
+                    transform=trans,
+                    facecolor=self.color,
+                    edgecolor='white',
+                    linewidth=2.
+                )
+                self.ax.add_patch(region_patch)
+        except ValueError:
+            pass
         self.ax.axis('off')
 
     def update(self, regions):
@@ -561,7 +564,7 @@ class TADtoolPlot(object):
         if save_path is not None:
             with open(save_path, 'w') as o:
                 for region in self.tad_regions:
-                    o.write("%s\t%d\t%d\n" % (region.chromosome, region.start, region.end))
+                    o.write("%s\t%d\t%d\n" % (region.chromosome, region.start-1, region.end))
 
     def on_click_save_vector(self, event):
         tk.Tk().withdraw()  # Close the root window
@@ -570,7 +573,7 @@ class TADtoolPlot(object):
             da_sub = self.da[self.current_da_ix]
             with open(save_path, 'w') as o:
                 for i, region in enumerate(self.regions):
-                    o.write("%s\t%d\t%d\t%e\n" % (region.chromosome, region.start, region.end, da_sub[i]))
+                    o.write("%s\t%d\t%d\t.\t%e\n" % (region.chromosome, region.start-1, region.end, da_sub[i]))
 
     def on_click_save_matrix(self, event):
         tk.Tk().withdraw()  # Close the root window
@@ -579,7 +582,7 @@ class TADtoolPlot(object):
             with open(save_path, 'w') as o:
                 # write regions
                 for i, region in enumerate(self.regions):
-                    o.write("%s:%d-%d" % (region.chromosome, region.start, region.end))
+                    o.write("%s:%d-%d" % (region.chromosome, region.start-1, region.end))
                     if i < len(self.regions)-1:
                         o.write("\t")
                     else:

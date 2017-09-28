@@ -3,6 +3,7 @@ import numpy as np
 import progressbar
 import itertools
 from future.utils import string_types
+import warnings
 
 
 class GenomicRegion(object):
@@ -236,7 +237,7 @@ def sub_vector_regions(data, regions, region):
     return np.copy(data[start_ix:end_ix+1]), sr
 
 
-def load_matrix(file_name, size=None, sep=None, square=True):
+def load_matrix(file_name, size=None, sep=None, square=True, ix_converter=None):
     try:  # numpy binary format
         m = np.load(file_name)
     except IOError:  # not an .npy file
@@ -262,7 +263,12 @@ def load_matrix(file_name, size=None, sep=None, square=True):
                         continue
                     line = line.rstrip()
                     fields = line.split(sep)
-                    source, sink, weight = int(fields[0]), int(fields[1]), float(fields[2])
+                    if ix_converter is None:
+                        source, sink, weight = int(fields[0]), int(fields[1]), float(fields[2])
+                    else:
+                        source = ix_converter[fields[0]]
+                        sink = ix_converter[fields[1]]
+                        weight = float(fields[2])
                     m[source, sink] = weight
                     m[sink, source] = weight
 
@@ -274,20 +280,26 @@ def load_matrix(file_name, size=None, sep=None, square=True):
 
 def load_regions(file_name, sep=None):
     regions = []
+    ix_converter = None
     with open(file_name, 'r') as f:
         for i, line in enumerate(f):
             line = line.rstrip()
             fields = line.split(sep)
             if len(fields) > 2:
                 chromosome = fields[0]
-                start = int(fields[1])
+                start = int(fields[1]) + 1
                 end = int(fields[2])
                 ix = i
                 if len(fields) > 3:  # HicPro
-                    ix = int(fields[3]) - 1
+                    if ix_converter is None:
+                        ix_converter = dict()
+                    if fields[3] in ix_converter:
+                        raise ValueError("name column in region BED must "
+                                         "only contain unique values! ({})".format(fields[3]))
+                    ix_converter[fields[3]] = ix
                     start += 1
                 regions.append(GenomicRegion(chromosome=chromosome, start=start, end=end, ix=ix))
-    return regions
+    return regions, ix_converter
 
 
 def _get_boundary_distances(regions):
@@ -569,16 +581,20 @@ def insulation_index(hic_matrix, regions=None, window_size=500000, relative=Fals
 
     if normalize:
         for i in range(len(ins_by_chromosome)):
-            if normalization_window is not None:
-                ins_by_chromosome[i] = np.ma.log2(ins_by_chromosome[i]/_apply_sliding_func(
-                    ins_by_chromosome[i], normalization_window, func=np.nanmean))
-            else:
-                ins_by_chromosome[i] = np.ma.log2(ins_by_chromosome[i]/np.nanmean(ins_by_chromosome[i]))
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                if normalization_window is not None:
+                    ins_by_chromosome[i] = np.ma.log2(ins_by_chromosome[i]/_apply_sliding_func(
+                        ins_by_chromosome[i], normalization_window, func=np.nanmean))
+                else:
+                    ins_by_chromosome[i] = np.ma.log2(ins_by_chromosome[i]/np.nanmean(ins_by_chromosome[i]))
     if gradient:
         for i in range(len(ins_by_chromosome)):
             ins_by_chromosome[i] = np.gradient(ins_by_chromosome[i])
 
-    ins_matrix = np.array(list(itertools.chain.from_iterable(ins_by_chromosome)))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        ins_matrix = np.array(list(itertools.chain.from_iterable(ins_by_chromosome)))
     return ins_matrix
 
 
