@@ -19,6 +19,7 @@ class TADtool(object):
                 Commands:
                     plot                Main interactive TADtool plotting window
                     tads                Call TADs with pre-defined parameters
+                    subset              Reduce a matrix to a smaller region.
 
                 Run tadtool <command> -h for help on a specific command.
                 '''
@@ -93,8 +94,8 @@ class TADtool(object):
         parser.add_argument(
             '-m', '--max-distance', dest='max_dist',
             type=int,
-            default=3000000,
-            help='''Maximum distance in base-pairs away from the diagonal to be shown in Hi-C plot. Default: 3000000'''
+            help='''Maximum distance in base-pairs away from the diagonal to be shown in Hi-C plot.
+                    Defaults to half the plotting window.'''
         )
 
         parser.add_argument(
@@ -117,9 +118,14 @@ class TADtool(object):
         matrix_file = os.path.expanduser(args.matrix)
         data_file = None if args.data is None else os.path.expanduser(args.data)
         plotting_region = args.plotting_region
+        max_dist = args.max_dist
 
         import tadtool.tad as tad
         from functools import partial
+
+        pr = tad.GenomicRegion.from_string(plotting_region)
+        if max_dist is None:
+            max_dist = int((pr.end - pr.start)/2)
 
         logging.info("Loading regions...")
         regions, ix_converter = tad.load_regions(regions_file)
@@ -192,7 +198,7 @@ class TADtool(object):
         import tadtool.plot as tp
         logging.info("Done. Showing plot...")
         tad_plot = tp.TADtoolPlot(matrix, regions, data=data, window_sizes=window_sizes,
-                                  norm='lin', max_dist=args.max_dist, algorithm=args.algorithm)
+                                  norm='lin', max_dist=max_dist, algorithm=args.algorithm)
         fig, axes = tad_plot.plot(plotting_region)
         tp.plt.show(block=True)  # necessary so that window won't close immediately
 
