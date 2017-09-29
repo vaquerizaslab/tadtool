@@ -290,7 +290,7 @@ def load_regions(file_name, sep=None):
                 start = int(fields[1]) + 1
                 end = int(fields[2])
                 ix = i
-                if len(fields) > 3:  # HicPro
+                if len(fields) > 3 and fields[3] != '.':  # HicPro
                     if ix_converter is None:
                         ix_converter = dict()
                     if fields[3] in ix_converter:
