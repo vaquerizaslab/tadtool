@@ -297,7 +297,6 @@ def load_regions(file_name, sep=None):
                         raise ValueError("name column in region BED must "
                                          "only contain unique values! ({})".format(fields[3]))
                     ix_converter[fields[3]] = ix
-                    start += 1
                 regions.append(GenomicRegion(chromosome=chromosome, start=start, end=end, ix=ix))
     return regions, ix_converter
 
