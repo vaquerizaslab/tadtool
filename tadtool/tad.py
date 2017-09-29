@@ -350,6 +350,12 @@ def directionality_index(hic, regions=None, window_size=2000000):
     right_sums = np.zeros(n_bins)
     for source in range(hic.shape[0]):
         for sink in range(source, hic.shape[1]):
+            try:
+                if hic.mask[source, sink]:
+                    continue
+            except AttributeError:
+                pass
+
             weight = hic[source, sink]
 
             if source == sink:
