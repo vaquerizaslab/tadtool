@@ -15,6 +15,7 @@ domains (TADs) algorithms for Hi-C data.
 			- [Launching from the command line](#launching-from-the-command-line)
 			- [Interactive plotting window](#interactive-plotting-window)
 		- [`tads`](#tads)
+		- [`subset`](#subset)
 
 <!-- /TOC -->
 
