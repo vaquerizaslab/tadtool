@@ -14,7 +14,7 @@ setup(
     author='Vaquerizas lab',
     author_email='kai.kruse@mpi-muenster.mpg.de',
     url='https://github.com/vaquerizaslab/tadtool',
-    download_url='https://github.com/vaquerizaslab/tadtool/tarball/0.72',
+    download_url='https://github.com/vaquerizaslab/tadtool/tarball/0.73',
     keywords=['bioinformatics', 'hi-c', 'genomics', 'tad'],
     classifiers=[],
     scripts=['bin/tadtool']
