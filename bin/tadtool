@@ -61,7 +61,9 @@ class TADtool(object):
 
         parser.add_argument(
             'regions',
-            help='''BED3 file (no header) with regions corresponding to the number of rows in the provided matrix.'''
+            help='''BED file (no header) with regions corresponding to the number of rows in the provided matrix.
+                    Fourth column, if present, denotes name field, which is used as an identifier in sparse 
+                    matrix notation.'''
         )
 
         parser.add_argument(
@@ -217,7 +219,9 @@ class TADtool(object):
 
         parser.add_argument(
             'regions',
-            help='''BED3 file (no header) with regions corresponding to the number of rows in the provided matrix.'''
+            help='''BED file (no header) with regions corresponding to the number of rows in the provided matrix.
+                    Fourth column, if present, denotes name field, which is used as an identifier in sparse 
+                    matrix notation.'''
         )
 
         parser.add_argument(
@@ -312,7 +316,9 @@ class TADtool(object):
 
         parser.add_argument(
             'regions',
-            help='''BED3 file (no header) with regions corresponding to the number of rows in the provided matrix.'''
+            help='''BED file (no header) with regions corresponding to the number of rows in the provided matrix.
+                    Fourth column, if present, denotes name field, which is used as an identifier in sparse 
+                    matrix notation.'''
         )
 
         parser.add_argument(
