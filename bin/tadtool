@@ -255,9 +255,17 @@ class TADtool(object):
                     window will be the whole chromosome.'''
         )
 
+        parser.add_argument(
+            '-v', '--write-values', dest='write_values',
+            action='store_true',
+            help='''Write index values to file instead of TADs.'''
+        )
+        parser.set_defaults(write_values=False)
+
         args = parser.parse_args(sys.argv[2:])
         regions_file = os.path.expanduser(args.regions)
         matrix_file = os.path.expanduser(args.matrix)
+        write_values = args.write_values
 
         import tadtool.tad as tad
         from functools import partial
@@ -289,17 +297,33 @@ class TADtool(object):
 
         logging.info("Calculating index...")
         index = index_algorithm(matrix, regions=regions, window_size=args.window_size)
-        logging.info("Calling TADs")
-        tads = tad_algorithm(index, cutoff=args.cutoff, regions=regions)
 
-        if args.output is not None:
-            output = os.path.expanduser(args.output)
-            with open(output, 'w') as o:
-                for region in tads:
-                    o.write("%s\t%d\t%d\n" % (region.chromosome, region.start-1, region.end))
+        if write_values:
+            if args.output is not None:
+                output = os.path.expanduser(args.output)
+                with open(output, 'w') as o:
+                    for i in range(len(regions)):
+                        ii = index[i]
+                        r = regions[i]
+                        o.write("{}\t{}\t{}\t.\t{}\n".format(r.chromosome, r.start-1, r.end, ii))
+
+            else:
+                for i in range(len(regions)):
+                    ii = index[i]
+                    r = regions[i]
+                    print("{}\t{}\t{}\t.\t{}\n".format(r.chromosome, r.start - 1, r.end, ii))
         else:
-            for region in tads:
-                print("%s\t%d\t%d" % (region.chromosome, region.start-1, region.end))
+            logging.info("Calling TADs")
+            tads = tad_algorithm(index, cutoff=args.cutoff, regions=regions)
+
+            if args.output is not None:
+                output = os.path.expanduser(args.output)
+                with open(output, 'w') as o:
+                    for region in tads:
+                        o.write("%s\t%d\t%d\n" % (region.chromosome, region.start-1, region.end))
+            else:
+                for region in tads:
+                    print("%s\t%d\t%d" % (region.chromosome, region.start-1, region.end))
 
     def subset(self):
         parser = argparse.ArgumentParser(
