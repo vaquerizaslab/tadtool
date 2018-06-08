@@ -717,6 +717,7 @@ def call_tads_insulation_index(ii_results, cutoff, regions=None):
                 first_region = regions[previous]
                 second_region = regions[border]
                 if first_region.chromosome != second_region.chromosome:
+                    previous = border
                     continue
                 tad_regions.append(GenomicRegion(chromosome=first_region.chromosome,
                                                  start=first_region.start, end=second_region.end))
