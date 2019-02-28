@@ -4,6 +4,7 @@ from __future__ import print_function
 import argparse
 import os.path
 import textwrap
+from collections import defaultdict
 import sys
 
 import logging
@@ -273,12 +274,6 @@ class TADtool(object):
         logging.info("Loading regions...")
         regions, ix_converter = tad.load_regions(regions_file)
 
-        logging.info("Loading matrix...")
-        matrix = tad.load_matrix(matrix_file, len(regions), ix_converter=ix_converter)
-
-        if len(regions) != matrix.shape[0]:
-            raise ValueError("Regions must be the same length as rows in matrix!")
-
         normalised_insulation_index = partial(tad.normalised_insulation_index,
                                               normalisation_window=args.normalisation_window)
 
@@ -295,8 +290,25 @@ class TADtool(object):
             raise ValueError("Algorithm (-a) can only be directionality, insulation or ninsulation, "
                              "not %s!" % args.algorithm)
 
+        chromosomes = []
+        chromosome_regions = defaultdict(list)
+        for region in regions:
+            if region.chromosome not in chromosome_regions:
+                chromosomes.append(region.chromosome)
+            chromosome_regions[region.chromosome].append(region)
+
         logging.info("Calculating index...")
-        index = index_algorithm(matrix, regions=regions, window_size=args.window_size)
+        index = []
+        for chromosome in chromosomes:
+            logging.info("Loading matrix {}...".format(chromosome))
+            matrix = tad.load_chromosome_matrix(matrix_file, regions, chromosome, ix_converter=ix_converter)
+
+            if len(chromosome_regions[chromosome]) != matrix.shape[0]:
+                raise ValueError("Regions must be the same length as rows in matrix!")
+
+            chromosome_index = index_algorithm(matrix, regions=chromosome_regions[chromosome], window_size=args.window_size)
+            for value in chromosome_index:
+                index.append(value)
 
         if write_values:
             if args.output is not None:

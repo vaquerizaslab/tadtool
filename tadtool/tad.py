@@ -237,9 +237,12 @@ def sub_vector_regions(data, regions, region):
     return np.copy(data[start_ix:end_ix+1]), sr
 
 
-def load_matrix(file_name, size=None, sep=None, square=True, ix_converter=None):
+def load_matrix(file_name, size=None, sep=None, square=True, ix_converter=None, region_range=None):
     try:  # numpy binary format
         m = np.load(file_name)
+        if region_range is not None:
+            s, e = region_range
+            m = m[s:e+1, s:e+1].copy()
     except IOError:  # not an .npy file
 
         # check number of fields in file
@@ -252,10 +255,17 @@ def load_matrix(file_name, size=None, sep=None, square=True, ix_converter=None):
 
         if n_fields > 3 or not square:  # square matrix format
             m = np.loadtxt(file_name)
+            if region_range is not None:
+                s, e = region_range
+                m = m[s:e + 1, s:e + 1].copy()
         else:
             if size is None:
-                raise ValueError("Must provide matrix size when importing from sparse matrix notation "
-                                 "(HicPro, etc)")
+                if region_range is not None:
+                    size = region_range[1] - region_range[0] + 1
+                else:
+                    raise ValueError("Must provide matrix size when importing from sparse matrix notation "
+                                     "(HicPro, etc)")
+
             m = np.zeros((size, size))
             with open(file_name, 'r') as f:
                 for line in f:
@@ -269,6 +279,15 @@ def load_matrix(file_name, size=None, sep=None, square=True, ix_converter=None):
                         source = ix_converter[fields[0]]
                         sink = ix_converter[fields[1]]
                         weight = float(fields[2])
+
+                    if region_range is not None:
+                        if source < region_range[0] or source > region_range[1]:
+                            continue
+                        if sink < region_range[0] or sink > region_range[1]:
+                            continue
+                        source = source - region_range[0]
+                        sink = sink - region_range[0]
+
                     m[source, sink] = weight
                     m[sink, source] = weight
 
@@ -276,6 +295,15 @@ def load_matrix(file_name, size=None, sep=None, square=True, ix_converter=None):
         raise ValueError("Matrix dimensions do not match! ({})".format(m.shape))
 
     return m
+
+
+def load_chromosome_matrix(file_name, regions, chromosome, **kwargs):
+    region_range = [0, 0]
+    for i, region in enumerate(regions):
+        if region.chromosome == chromosome:
+            region_range[0] = min(region_range[0], i)
+            region_range[1] = max(region_range[1], i)
+    return load_matrix(file_name, region_range=region_range, **kwargs)
 
 
 def load_regions(file_name, sep=None):
@@ -600,6 +628,7 @@ def insulation_index(hic_matrix, regions=None, window_size=500000, relative=Fals
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         ins_matrix = np.array(list(itertools.chain.from_iterable(ins_by_chromosome)))
+
     return ins_matrix
 
 
