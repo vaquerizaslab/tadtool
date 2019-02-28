@@ -302,6 +302,7 @@ class TADtool(object):
         for chromosome in chromosomes:
             logging.info("Loading matrix {}...".format(chromosome))
             matrix = tad.load_chromosome_matrix(matrix_file, regions, chromosome, ix_converter=ix_converter)
+            matrix = tad.masked_matrix(matrix)
 
             if len(chromosome_regions[chromosome]) != matrix.shape[0]:
                 raise ValueError("Regions must be the same length as rows in matrix!")
