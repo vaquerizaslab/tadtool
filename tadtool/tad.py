@@ -243,7 +243,7 @@ def load_matrix(file_name, size=None, sep=None, square=True, ix_converter=None, 
         if region_range is not None:
             s, e = region_range
             m = m[s:e+1, s:e+1].copy()
-    except IOError:  # not an .npy file
+    except (IOError, ValueError):  # not an .npy file
 
         # check number of fields in file
         with open(file_name, 'r') as f:
