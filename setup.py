@@ -1,8 +1,12 @@
 from setuptools import setup, find_packages
 
+
+__version__ = None
+exec(open('tadtool/version.py').read())
+
 setup(
     name='tadtool',
-    version='0.78',
+    version=__version__,
     description='Assistant to find cutoffs in TAD calling algorithms.',
     packages=find_packages(exclude=["test"]),
     install_requires=[
@@ -14,7 +18,7 @@ setup(
     author='Vaquerizas lab',
     author_email='kai.kruse@mpi-muenster.mpg.de',
     url='https://github.com/vaquerizaslab/tadtool',
-    download_url='https://github.com/vaquerizaslab/tadtool/tarball/0.78',
+    download_url='https://github.com/vaquerizaslab/tadtool/tarball/0.70',
     keywords=['bioinformatics', 'hi-c', 'genomics', 'tad'],
     classifiers=[],
     scripts=['bin/tadtool']
