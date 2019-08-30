@@ -305,9 +305,12 @@ class TADtool(object):
             matrix = tad.masked_matrix(matrix)
 
             if len(chromosome_regions[chromosome]) != matrix.shape[0]:
-                raise ValueError("Regions must be the same length as rows in matrix!")
+                raise ValueError("Regions ({}) must be the same length as rows in matrix ({})!".format(
+                    chromosome_regions[chromosome], matrix.shape[0]
+                ))
 
-            chromosome_index = index_algorithm(matrix, regions=chromosome_regions[chromosome], window_size=args.window_size)
+            chromosome_index = index_algorithm(matrix, regions=chromosome_regions[chromosome],
+                                               window_size=args.window_size)
             for value in chromosome_index:
                 index.append(value)
 
