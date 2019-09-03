@@ -298,9 +298,11 @@ def load_matrix(file_name, size=None, sep=None, square=True, ix_converter=None, 
 
 
 def load_chromosome_matrix(file_name, regions, chromosome, **kwargs):
-    region_range = [0, 0]
+    region_range = [None, 0]
     for i, region in enumerate(regions):
         if region.chromosome == chromosome:
+            if region_range[0] is None:
+                region_range[0] = i
             region_range[0] = min(region_range[0], i)
             region_range[1] = max(region_range[1], i)
     return load_matrix(file_name, region_range=region_range, **kwargs)
