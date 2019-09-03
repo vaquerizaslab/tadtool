@@ -10,6 +10,8 @@ import sys
 import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 
+logger = logging.getLogger('main')
+
 
 class TADtool(object):
 
@@ -130,13 +132,13 @@ class TADtool(object):
         if max_dist is None:
             max_dist = int((pr.end - pr.start)/2)
 
-        logging.info("Loading regions...")
+        logger.info("Loading regions...")
         regions, ix_converter = tad.load_regions(regions_file)
 
-        logging.info("Checking plotting region in matrix...")
+        logger.info("Checking plotting region in matrix...")
         tad.sub_regions(regions, plotting_region)
 
-        logging.info("Loading matrix...")
+        logger.info("Loading matrix...")
         matrix = tad.load_matrix(matrix_file, len(regions), ix_converter=ix_converter)
         matrix = tad.masked_matrix(matrix)
 
@@ -147,7 +149,7 @@ class TADtool(object):
         if matrix.shape[0] != matrix.shape[1]:
             raise ValueError("Matrix must be square!")
 
-        logging.info("Getting window sizes...")
+        logger.info("Getting window sizes...")
         if args.window_sizes is None:
             import numpy as np
             if args.algorithm == 'insulation' or args.algorithm == 'ninsulation':
@@ -185,11 +187,11 @@ class TADtool(object):
                 raise ValueError("Algorithm (-a) can only be directionality, insulation or ninsulation,"
                                  " not %s!" % args.algorithm)
 
-            logging.info("Calculating index...")
+            logger.info("Calculating index...")
             data, window_sizes = tad.data_array(hic_matrix=matrix, regions=regions,
                                                 tad_method=tad_algorithm, window_sizes=window_sizes)
         else:
-            logging.info("Loading data file...")
+            logger.info("Loading data file...")
             data = tad.load_matrix(data_file, square=False)
             if data.shape[0] != len(window_sizes):
                 raise ValueError("Number of rows in data (%d) must equal the number of window sizes (%d)!" % (
@@ -199,7 +201,7 @@ class TADtool(object):
                     data.shape[0], matrix.shape[0]))
 
         import tadtool.plot as tp
-        logging.info("Done. Showing plot...")
+        logger.info("Done. Showing plot...")
         tad_plot = tp.TADtoolPlot(matrix, regions, data=data, window_sizes=window_sizes,
                                   norm='lin', max_dist=max_dist, algorithm=args.algorithm)
         fig, axes = tad_plot.plot(plotting_region)
@@ -271,7 +273,7 @@ class TADtool(object):
         import tadtool.tad as tad
         from functools import partial
 
-        logging.info("Loading regions...")
+        logger.info("Loading regions...")
         regions, ix_converter = tad.load_regions(regions_file)
 
         normalised_insulation_index = partial(tad.normalised_insulation_index,
@@ -297,10 +299,10 @@ class TADtool(object):
                 chromosomes.append(region.chromosome)
             chromosome_regions[region.chromosome].append(region)
 
-        logging.info("Calculating index...")
+        logger.info("Calculating index...")
         index = []
         for chromosome in chromosomes:
-            logging.info("Loading matrix {}...".format(chromosome))
+            logger.info("Loading matrix {}...".format(chromosome))
             matrix = tad.load_chromosome_matrix(matrix_file, regions, chromosome, ix_converter=ix_converter)
             matrix = tad.masked_matrix(matrix)
 
@@ -329,7 +331,7 @@ class TADtool(object):
                     r = regions[i]
                     print("{}\t{}\t{}\t.\t{}\n".format(r.chromosome, r.start - 1, r.end, ii))
         else:
-            logging.info("Calling TADs")
+            logger.info("Calling TADs")
             tads = tad_algorithm(index, cutoff=args.cutoff, regions=regions)
 
             if args.output is not None:

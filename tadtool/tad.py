@@ -5,6 +5,9 @@ import itertools
 from future.utils import string_types
 import warnings
 
+import logging
+logger = logging.getLogger(__name__)
+
 
 class GenomicRegion(object):
     """
@@ -305,6 +308,7 @@ def load_chromosome_matrix(file_name, regions, chromosome, **kwargs):
                 region_range[0] = i
             region_range[0] = min(region_range[0], i)
             region_range[1] = max(region_range[1], i)
+    logger.debug('Region range for {}: {} - {}'.format(chromosome, region_range[0], region_range[1]))
     return load_matrix(file_name, region_range=region_range, **kwargs)
 
 
