@@ -73,7 +73,7 @@ Here is the help output from `tadtool plot -h`:
 
 ```
 usage: tadtool plot [-h] [-w WINDOW_SIZES [WINDOW_SIZES ...]] [-a ALGORITHM]
-                    [-m MAX_DIST] [-d DATA]
+                    [-m MAX_DIST] [-n NORMALISATION_WINDOW] [-d DATA]
                     matrix regions plotting_region
 
 Main interactive TADtool plotting window
@@ -81,10 +81,12 @@ Main interactive TADtool plotting window
 positional arguments:
   matrix                Square Hi-C Matrix as tab-delimited or .npy file
                         (created with numpy.save) or sparse matrix format
-                        (each line: 
-                        <row region index> <column region index> <matrix value>)
-  regions               BED file (no header) with regions corresponding to
-                        the number of rows in the provided matrix.
+                        (each line: <row region index> <column region index>
+                        <matrix value>)
+  regions               BED file (no header) with regions corresponding to the
+                        number of rows in the provided matrix. Fourth column,
+                        if present, denotes name field, which is used as an
+                        identifier in sparse matrix notation.
   plotting_region       Region of the Hi-C matrix to display in plot. Format:
                         <chromosome>:<start>-<end>, e.g.
                         chr12:31000000-33000000
@@ -106,7 +108,12 @@ optional arguments:
                         ninsulation, directionality. Default: insulation.
   -m MAX_DIST, --max-distance MAX_DIST
                         Maximum distance in base-pairs away from the diagonal
-                        to be shown in Hi-C plot. Default: 3000000
+                        to be shown in Hi-C plot. Defaults to half the
+                        plotting window.
+  -n NORMALISATION_WINDOW, --normalisation-window NORMALISATION_WINDOW
+                        Normalisation window in number of regions. Only
+                        affects ninsulation algorithm. If not specified,
+                        window will be the whole chromosome.
   -d DATA, --data DATA  Matrix with index data. Rows correspond to window
                         sizes, columns to Hi-C matrix bins. If provided,
                         suppresses inbuilt index calculation.
@@ -213,7 +220,7 @@ quick TAD calculations when parameters are already known, or to fine-tune parame
 TADtool plot. Here is the help output from `tadtool tads -h`:
 
 ```
-usage: tadtool tads [-h] [-a ALGORITHM]
+usage: tadtool tads [-h] [-a ALGORITHM] [-n NORMALISATION_WINDOW] [-v]
                     matrix regions window_size cutoff [output]
 
 Call TADs with pre-defined parameters
@@ -221,28 +228,32 @@ Call TADs with pre-defined parameters
 positional arguments:
   matrix                Square Hi-C Matrix as tab-delimited or .npy file
                         (created with numpy.save) or sparse matrix format
-                        (each line: 
-                        <row region index> <column region index> <matrix value>)
-  regions               BED file (no header) with regions corresponding to
-                        the number of rows in the provided matrix.
+                        (each line: <row region index> <column region index>
+                        <matrix value>)
+  regions               BED file (no header) with regions corresponding to the
+                        number of rows in the provided matrix. Fourth column,
+                        if present, denotes name field, which is used as an
+                        identifier in sparse matrix notation.
   window_size           Window size in base pairs
   cutoff                Cutoff for TAD-calling algorithm at given window size.
   output                Optional output file to save TADs.
 
 optional arguments:
   -h, --help            show this help message and exit
-	-a ALGORITHM, --algorithm ALGORITHM
+  -a ALGORITHM, --algorithm ALGORITHM
                         TAD-calling algorithm. Options: insulation,
                         ninsulation, directionality. Default: insulation.
   -n NORMALISATION_WINDOW, --normalisation-window NORMALISATION_WINDOW
                         Normalisation window in number of regions. Only
                         affects ninsulation algorithm. If not specified,
                         window will be the whole chromosome.
+  -v, --write-values    Write index values to file instead of TADs.
 ```
 
 As `plot`, `tads` needs a Hi-C matrix and a regions BED file as input. In addition, it requires a window size 
 in base pairs and a cutoff (floating point). Optionally, the user can specify an output file to save TAD regions, 
-otherwise TADs will be written to the command line. For further parameters, see `plot`.
+otherwise TADs will be written to the command line. Use `-v` to write the insulation score or directionality index 
+for each regon instead of the TAD calls. For further parameters, see `plot`.
 
 ### `subset`
 
@@ -260,9 +271,14 @@ positional arguments:
                   with numpy.save) or sparse matrix format (each line: <row
                   region index> <column region index> <matrix value>)
   regions         BED file (no header) with regions corresponding to the
-                  number of rows in the provided matrix.
+                  number of rows in the provided matrix. Fourth column, if
+                  present, denotes name field, which is used as an identifier
+                  in sparse matrix notation.
   sub_region      Region of the Hi-C matrix to display in plot. Format:
                   <chromosome>:<start>-<end>, e.g. chr12:31000000-33000000
   output_matrix   Output matrix file.
   output_regions  Output regions file.
+
+optional arguments:
+  -h, --help      show this help message and exit
 ```
