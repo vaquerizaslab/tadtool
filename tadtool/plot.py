@@ -313,7 +313,8 @@ class HicPlot(BasePlotter1D, BasePlotterHic):
     def set_clim(self, vmin, vmax):
         self.hicmesh.set_clim(vmin=vmin, vmax=vmax)
         if self.colorbar is not None:
-            self.colorbar.set_clim(vmin=vmin, vmax=vmax)
+            self.colorbar.vmin = vmin
+            self.colorbar.vmax = vmax
             self.colorbar.draw_all()
 
 
@@ -364,7 +365,8 @@ class DataArrayPlot(BasePlotter1D):
     def set_clim(self, vmin, vmax):
         self.mesh.set_clim(vmin=vmin, vmax=vmax)
         if self.colorbar is not None:
-            self.colorbar.set_clim(vmin=vmin, vmax=vmax)
+            self.colorbar.vmin = vmin
+            self.colorbar.vmax = vmax
             self.colorbar.draw_all()
 
     def update(self, window_size):
