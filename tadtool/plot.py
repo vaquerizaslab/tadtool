@@ -351,9 +351,9 @@ class DataArrayPlot(BasePlotter1D):
         da_sub, regions_sub = sub_data_regions(self.da, self.regions, region)
 
         da_sub_masked = np.ma.MaskedArray(da_sub, mask=np.isnan(da_sub))
-        bin_coords = np.r_[[(x.start - 1) for x in regions_sub], regions_sub[-1].end]
+        bin_coords = np.r_[[(x.start - 1) for x in regions_sub[:-1]], regions_sub[-1].end]
         x, y = np.meshgrid(bin_coords, self.window_sizes)
-
+        
         self.mesh = self.ax.pcolormesh(x, y, da_sub_masked, cmap=self.colormap, vmax=self.vmax)
         self.colorbar = plt.colorbar(self.mesh, cax=cax, orientation="vertical")
         self.window_size_line = self.ax.axhline(self.current_window_size, color='red')

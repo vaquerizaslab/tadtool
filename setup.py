@@ -11,9 +11,9 @@ setup(
     packages=find_packages(exclude=["test"]),
     install_requires=[
         'numpy>=1.9.0',
-        'matplotlib',
+        'matplotlib>=3.6.0',
         'progressbar2',
-        'future'
+        'future',
     ],
     author='Vaquerizas lab',
     author_email='kai.kruse@mpi-muenster.mpg.de',
