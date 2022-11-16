@@ -161,7 +161,7 @@ class TADtool(object):
                 try:
                     import numpy as np
                     window_sizes = np.load(args.window_sizes[0])
-                except IOError:
+                except (IOError, ValueError):
                     with open(os.path.expanduser(args.window_sizes[0]), 'r') as ws_file:
                         file_content = ws_file.read()
                         string_sizes = file_content.split()
